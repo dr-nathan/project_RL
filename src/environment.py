@@ -1,18 +1,21 @@
+from datetime import datetime, timedelta
+
 import gymnasium as gym
 from gymnasium import spaces
-import pandas as pd
+
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
 
-    def __init__(self, data:pd.DataFrame):
+    def __init__(self, price_data: dict[datetime, float]):
         # static properties
-        self.max_stored_energy = 100000 * 1000 * 9.81 * 30 # U = mgh
+        self.max_stored_energy = 100000 * 1000 * 9.81 * 30  # U = mgh
         self.min_stored_energy = 0
-        self.max_flow_rate = 5 * 3600 * 9.81 * 30 # 5 m^3/s
-        self.price_bins = 10
+        # a positive flow means emtpying the reservoir
+        self.max_flow_rate = 5 * 3600 * 9.81 * 30  # 5 m^3/s to m^3/h * gh
+        self.price_bin_size = 100
 
-        self.data = data
+        self.price_data = price_data
 
         self.reset()
 
@@ -22,51 +25,60 @@ class DiscreteDamEnv(gym.Env):
         self.action_space = spaces.Discrete(3)
 
         # state is (hour, electricity price (bins))
-        self.observation_space = spaces.MultiDiscrete([24, self.price_bins])
-
-    def step(self, action):
-        # do nothing
-        if action == 0:
-            pass
-
-        # empty
-        elif action == 1:
-            flow = self._action_empty(self.max_flow_rate)
-
-        # fill
-        elif action == 2:
-            flow = self._action_fill(self.max_flow_rate)
-
-        self._next_hour()
-        
-        return 
-        
-    def _action_fill(self, rate:float):
-        # don't allow reservoir to fill above max
-        difference_to_max = self.max_stored_energy - self.stored_energy
-        if difference_to_max < rate:
-            rate = difference_to_max
-
-        self.stored_energy += rate
-        return rate
-
-    def _action_empty(self, rate:float):
-        # don't allow reservoir to empty below min
-        difference_to_min = self.stored_energy - self.min_stored_energy
-        if difference_to_min < rate:
-            rate = difference_to_min
-
-        self.stored_energy -= rate
-        return rate
-
-    def _next_hour(self):
-        self.hour += 1
-        if self.hour == 24:
-            self.hour = 0
-
-        self.energy_price = self._get_energy_price(self.hour)
+        n_bins = int(max(self.price_data.values()) // self.price_bin_size)
+        self.observation_space = spaces.MultiDiscrete([24, n_bins])
 
     def reset(self):
         self.stored_energy = self.max_stored_energy
-        self.hour = 0
+        self.current_date = min(self.price_data.keys())
+        self.current_price = self.price_data[self.current_date]
 
+    def step(self, action: int):
+        # empty
+        if action == 1:
+            flow_rate = self.max_flow_rate
+
+        # fill
+        elif action == 2:
+            flow_rate = -self.max_flow_rate
+
+        # do nothing, i.e. action == 0 (default)
+        else:
+            flow_rate = 0
+
+        # update the applied flow so we don't overflow or store less than 0
+        flow_rate = self._constrain_flow_rate(flow_rate)
+
+        # move to the next hour
+        self._set_next_state()
+
+        return self._get_state(), self._get_reward(flow_rate)
+
+    def _constrain_flow_rate(self, flow_rate: float):
+        self.stored_energy += flow_rate
+
+        # change flow rate if we overflow
+        if self.stored_energy > self.max_stored_energy:
+            flow_rate -= self.max_stored_energy - self.stored_energy
+            self.stored_energy = self.max_stored_energy
+
+        # change flow rate if we store less than 0
+        elif self.stored_energy < self.min_stored_energy:
+            flow_rate -= self.min_stored_energy - self.stored_energy
+            self.stored_energy = self.min_stored_energy
+
+        return flow_rate
+
+    def _set_next_state(self):
+        self.current_date += timedelta(hours=1)
+        self.current_price = self.price_data[self.current_date]
+
+    def _get_state(self):
+        return [self.current_date.hour, self._get_price_bin()]
+
+    def _get_price_bin(self):
+        return self.current_price // self.price_bin_size
+
+    def _get_reward(self, flow: float):
+        # positive flow = selling, negative = buying
+        return flow * self.current_price
