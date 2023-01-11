@@ -14,6 +14,9 @@ class DiscreteDamEnv(gym.Env):
     # a positive flow means emtpying the reservoir
     max_flow_rate = 5 * 3600 * 9.81 * 30  # 5 m^3/s to m^3/h * gh
 
+    buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
+    sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
+
     price_bin_size = 100
 
     def __init__(self, price_data: dict[datetime, float]):
@@ -35,9 +38,13 @@ class DiscreteDamEnv(gym.Env):
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
 
-        self.stored_energy = self.max_stored_energy
+        self.stored_energy = (
+            self.max_stored_energy / 2
+        )  # start with a half-full reservor
         self.current_date = min(self.price_data.keys())
         self.current_price = self.price_data[self.current_date]
+
+        self.terminated = False
 
     def step(self, action: int):
         # empty
@@ -58,8 +65,8 @@ class DiscreteDamEnv(gym.Env):
         # move to the next hour
         self._set_next_state()
 
-        # TODO: does not fully follow Gym step convention
-        return self._get_state(), self._get_reward(flow_rate)
+        # observation, reward, terminated, info (Gym convention)
+        return self._get_state(), self._get_reward(flow_rate), self.terminated, {}
 
     def _constrain_flow_rate(self, flow_rate: float):
         self.stored_energy += flow_rate
@@ -78,7 +85,12 @@ class DiscreteDamEnv(gym.Env):
 
     def _set_next_state(self):
         self.current_date += timedelta(hours=1)
-        self.current_price = self.price_data[self.current_date]
+
+        if self.current_date in self.price_data:
+            self.current_price = self.price_data[self.current_date]
+
+        else:
+            self.terminated = True
 
     def _get_state(self):
         return [self.current_date.hour, self._get_price_bin()]
@@ -88,4 +100,7 @@ class DiscreteDamEnv(gym.Env):
 
     def _get_reward(self, flow: float):
         # positive flow = selling, negative = buying
-        return flow * self.current_price
+        if flow > 0:
+            return flow * self.sell_multiplier * self.current_price
+
+        return flow * self.buy_multiplier * self.current_price
