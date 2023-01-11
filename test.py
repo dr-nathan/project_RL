@@ -1,5 +1,6 @@
 # %%
 from datetime import datetime
+import random
 import pandas as pd
 from src.utils import convert_dataframe
 
@@ -16,10 +17,14 @@ env = DiscreteDamEnv(lookup)
 
 # %%
 env.step(1)
+
 # %%
 env.reset()
 run = True
 while run:
-    res = env.step(2)
+    res = env.step(random.choice([0, 1, 2]))
     run = not res[2]
     print(res[0], round(res[1], 2), env.stored_energy, env.current_price)
+
+# %%
+env.episode_data.plot()

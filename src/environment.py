@@ -1,10 +1,59 @@
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 import gymnasium as gym
 from gymnasium import spaces
 
-from .utils import joule_to_kwh
+from .utils import cumsum, joule_to_kwh
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+
+@dataclass
+class DamEpisodeData:
+    """Dataclass to store episode data for a dam environment"""
+
+    storage: list[float] = field(default_factory=list)
+    action: list[float] = field(default_factory=list)
+    flow: list[float] = field(default_factory=list)
+    price: list[float] = field(default_factory=list)
+    reward: list[float] = field(default_factory=list)
+
+    def add(
+        self, storage: float, action: float, flow: float, price: float, reward: float
+    ):
+        self.storage.append(storage)
+        self.action.append(action)
+        self.flow.append(flow)
+        self.price.append(price)
+        self.reward.append(reward)
+
+    def plot(self):
+        sns.set()
+        fig, axs = plt.subplots(6, 1, figsize=(10, 10))
+
+        axs[0].plot(self.storage)
+        axs[0].set_title("Storage")
+
+        axs[1].scatter(range(len(self.action)), self.action)
+        axs[1].set_title("Action")
+
+        axs[2].plot(self.flow)
+        axs[2].set_title("Flow")
+
+        axs[3].plot(self.price)
+        axs[3].set_title("Price")
+
+        axs[4].plot(self.reward)
+        axs[4].set_title("Reward")
+
+        axs[5].plot(cumsum(self.reward))
+        axs[5].set_title("Cumulative reward")
+
+        fig.tight_layout()
+        plt.show()
 
 
 class DiscreteDamEnv(gym.Env):
@@ -47,6 +96,7 @@ class DiscreteDamEnv(gym.Env):
         self.current_price = self.price_data[self.current_date]
 
         self.terminated = False
+        self.episode_data = DamEpisodeData()
 
         return self._get_state()
 
@@ -64,20 +114,30 @@ class DiscreteDamEnv(gym.Env):
             flow_rate = 0
 
         # update the applied flow so we don't overflow or store less than 0
-        applied_flow_rate = self._constrain_flow_rate(flow_rate)
+        applied_flow_rate = self._apply_constrained_flow_rate(flow_rate)
+        reward = self._get_reward(applied_flow_rate)
 
         # move to the next hour
         self._set_next_state()
 
+        # store episode data
+        self.episode_data.add(
+            self.stored_energy,
+            action,
+            applied_flow_rate,
+            self.current_price,
+            reward,
+        )
+
         # observation, reward, terminated, info (Gym convention)
         return (
             self._get_state(),
-            self._get_reward(applied_flow_rate),
+            reward,
             self.terminated,
             {},
         )
 
-    def _constrain_flow_rate(self, flow_rate: float):
+    def _apply_constrained_flow_rate(self, flow_rate: float):
         self.stored_energy += flow_rate
 
         # change flow rate if we overflow
@@ -110,8 +170,9 @@ class DiscreteDamEnv(gym.Env):
         return self.current_price // self.price_bin_size
 
     def _get_reward(self, flow: float):
-        # positive flow = selling, negative = buying
+        # positive flow = selling
         if flow > 0:
             return flow * self.sell_multiplier * self.current_price
 
+        # negative flow = buying
         return flow * self.buy_multiplier * self.current_price
