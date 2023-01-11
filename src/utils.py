@@ -19,3 +19,9 @@ def convert_dataframe(df: pd.DataFrame) -> dict[datetime, float]:
     df.set_index("datetime", inplace=True)
 
     return df["value"].to_dict()
+
+def joule_to_kwh(joule: float):
+    return joule / 3.6e6
+
+def kwh_to_joule(kwh: float):
+    return kwh * 3.6e6

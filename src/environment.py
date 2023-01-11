@@ -4,15 +4,17 @@ from typing import Any
 import gymnasium as gym
 from gymnasium import spaces
 
+from .utils import joule_to_kwh
+
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
 
     # static properties
-    max_stored_energy = 100000 * 1000 * 9.81 * 30  # U = mgh
+    max_stored_energy = joule_to_kwh(100000 * 1000 * 9.81 * 30)  # U = mgh
     min_stored_energy = 0
     # a positive flow means emtpying the reservoir
-    max_flow_rate = 5 * 3600 * 9.81 * 30  # 5 m^3/s to m^3/h * gh
+    max_flow_rate = joule_to_kwh(5 * 3600 * 9.81 * 30)  # 5 m^3/s to m^3/h * gh
 
     buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
@@ -60,25 +62,32 @@ class DiscreteDamEnv(gym.Env):
             flow_rate = 0
 
         # update the applied flow so we don't overflow or store less than 0
-        flow_rate = self._constrain_flow_rate(flow_rate)
+        applied_flow_rate = self._constrain_flow_rate(flow_rate)
 
         # move to the next hour
         self._set_next_state()
 
         # observation, reward, terminated, info (Gym convention)
-        return self._get_state(), self._get_reward(flow_rate), self.terminated, {}
+        return (
+            self._get_state(),
+            self._get_reward(applied_flow_rate),
+            self.terminated,
+            {},
+        )
 
     def _constrain_flow_rate(self, flow_rate: float):
         self.stored_energy += flow_rate
 
         # change flow rate if we overflow
         if self.stored_energy > self.max_stored_energy:
-            flow_rate -= self.max_stored_energy - self.stored_energy
+            correction = self.stored_energy - self.max_stored_energy
+            flow_rate -= correction
             self.stored_energy = self.max_stored_energy
 
         # change flow rate if we store less than 0
         elif self.stored_energy < self.min_stored_energy:
-            flow_rate -= self.min_stored_energy - self.stored_energy
+            correction = self.min_stored_energy - self.stored_energy
+            flow_rate += correction
             self.stored_energy = self.min_stored_energy
 
         return flow_rate
