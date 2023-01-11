@@ -48,6 +48,8 @@ class DiscreteDamEnv(gym.Env):
 
         self.terminated = False
 
+        return self._get_state()
+
     def step(self, action: int):
         # empty
         if action == 1:
