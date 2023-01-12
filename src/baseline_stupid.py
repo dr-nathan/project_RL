@@ -34,7 +34,7 @@ class baseline():
 
     def choice(self) :
         reward = [] #initialize reward
-        energy = self.max_stored_energy
+        energy = self.max_stored_energy/2
         energy_story = [energy] 
         action = [] 
         self.low_min_max, self.medium_min_max, self.high_min_max = self.get_low_medium_high_price()
@@ -67,7 +67,7 @@ class baseline():
 
     def plot_baseline(self) : 
 
-        self.storage,self.reward,self.action = self.choice()
+        self.storage,self.reward,self.action = self.choice() #storage is in terms of energy here
         
         self.flow = self.action 
         self.price = self.prices_val
