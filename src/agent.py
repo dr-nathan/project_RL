@@ -1,9 +1,5 @@
-from environment import DiscreteDamEnv
-from utils import convert_dataframe
-
 import gymnasium as gym
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 
 
@@ -73,17 +69,3 @@ class Agent:
                 self.env.episode_data.plot()
 
         return self.episode_data
-
-
-if __name__ == '__main__':
-
-    # load data
-    train_data = pd.read_excel("../data/train.xlsx")
-    train_data = convert_dataframe(train_data)
-
-    environment = DiscreteDamEnv(train_data)
-
-    agent = Agent(environment)
-    episode_data = agent.train("epsilon_greedy", 1000, epsilon=0.3, alpha=0.1)
-
-    print(agent.Qtable)

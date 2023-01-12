@@ -1,15 +1,14 @@
-from utils import cumsum, joule_to_kwh
-
+import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 import gymnasium as gym
-from gymnasium import spaces
-
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+from gymnasium import spaces
+
+from src.utils import cumsum, joule_to_kwh
 
 
 @dataclass
@@ -38,7 +37,7 @@ class DamEpisodeData:
         axs[0].plot(self.storage)
         axs[0].set_title("Storage")
 
-        axs[1].scatter(range(len(self.action)), self.action)
+        axs[1].scatter(range(len(self.action)), self.action, s=1, marker="x")
         axs[1].set_title("Action")
 
         axs[2].plot(self.flow)
@@ -107,7 +106,7 @@ class DiscreteDamEnv(gym.Env):
         # start points to choose from
         start_points = list(self.price_data.keys())
         start_points = start_points[:-24]  # remove last day
-        start = np.random.choice(start_points)
+        start = random.choice(start_points)
 
         # set the time variables
         self.current_date = start
@@ -116,11 +115,11 @@ class DiscreteDamEnv(gym.Env):
         return self._get_state()
 
     def step(self, action: int):
-        # empty
+        # empty reservor / sell
         if action == 1:
             flow_rate = self.max_flow_rate
 
-        # fill
+        # fill reservor / buy
         elif action == 2:
             flow_rate = -self.max_flow_rate
 
@@ -153,19 +152,19 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _apply_constrained_flow_rate(self, flow_rate: float):
-        # TODO: verify this: action 1 is selling, so there should be less water in the dam after. Changed + to -
+        # positive flow means emtpying the reservoir
         self.stored_energy -= flow_rate
 
         # change flow rate if we overflow
         if self.stored_energy > self.max_stored_energy:
             correction = self.stored_energy - self.max_stored_energy
-            flow_rate += correction  # TODO: changed sign here too
+            flow_rate += correction
             self.stored_energy = self.max_stored_energy
 
         # change flow rate if we store less than 0
         elif self.stored_energy < self.min_stored_energy:
             correction = self.min_stored_energy - self.stored_energy
-            flow_rate -= correction  # TODO: changed sign here too
+            flow_rate -= correction
             self.stored_energy = self.min_stored_energy
 
         return flow_rate
