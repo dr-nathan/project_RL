@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from gymnasium import spaces
 
-from src.utils import cumsum, joule_to_kwh
+from utils import cumsum, joule_to_kwh
 
 
 @dataclass
