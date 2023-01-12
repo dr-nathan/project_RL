@@ -1,3 +1,5 @@
+from utils import cumsum, joule_to_kwh
+
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -5,10 +7,9 @@ from typing import Any
 import gymnasium as gym
 from gymnasium import spaces
 
-from .utils import cumsum, joule_to_kwh
-
 import matplotlib.pyplot as plt
 import seaborn as sns
+import numpy as np
 
 
 @dataclass
@@ -100,6 +101,20 @@ class DiscreteDamEnv(gym.Env):
 
         return self._get_state()
 
+    def pick_random_startpoint(self):
+        """Pick a random state to start from"""
+
+        # start points to choose from
+        start_points = list(self.price_data.keys())
+        start_points = start_points[:-24]  # remove last day
+        start = np.random.choice(start_points)
+
+        # set the time variables
+        self.current_date = start
+        self.current_price = self.price_data[self.current_date]
+
+        return self._get_state()
+
     def step(self, action: int):
         # empty
         if action == 1:
@@ -138,18 +153,19 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _apply_constrained_flow_rate(self, flow_rate: float):
-        self.stored_energy += flow_rate
+        # TODO: verify this: action 1 is selling, so there should be less water in the dam after. Changed + to -
+        self.stored_energy -= flow_rate
 
         # change flow rate if we overflow
         if self.stored_energy > self.max_stored_energy:
             correction = self.stored_energy - self.max_stored_energy
-            flow_rate -= correction
+            flow_rate += correction  # TODO: changed sign here too
             self.stored_energy = self.max_stored_energy
 
         # change flow rate if we store less than 0
         elif self.stored_energy < self.min_stored_energy:
             correction = self.min_stored_energy - self.stored_energy
-            flow_rate += correction
+            flow_rate -= correction  # TODO: changed sign here too
             self.stored_energy = self.min_stored_energy
 
         return flow_rate
@@ -167,7 +183,7 @@ class DiscreteDamEnv(gym.Env):
         return [self.current_date.hour, self._get_price_bin()]
 
     def _get_price_bin(self):
-        return self.current_price // self.price_bin_size
+        return int(self.current_price // self.price_bin_size)
 
     def _get_reward(self, flow: float):
         # positive flow = selling
