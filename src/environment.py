@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Literal
 
 import gymnasium as gym
@@ -70,8 +70,6 @@ class DiscreteDamEnv(gym.Env):
 
     price_bin_size = 200
     n_bins_reservoir = 10
-
-    time_delta = timedelta(hours=1)
 
     def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
