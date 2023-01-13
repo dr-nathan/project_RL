@@ -1,7 +1,7 @@
 import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -71,6 +71,8 @@ class DiscreteDamEnv(gym.Env):
     price_bin_size = 200
     n_bins_reservoir = 10
 
+    time_delta = timedelta(hours=1)
+
     def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
 
@@ -86,24 +88,34 @@ class DiscreteDamEnv(gym.Env):
         # state is (hour, electricity price (bins), stored energy)
         n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
-        self.observation_space = spaces.MultiDiscrete([24, n_bins_price+1, self.n_bins_reservoir+1])
+        self.observation_space = spaces.MultiDiscrete(
+            [24, n_bins_price + 1, self.n_bins_reservoir + 1]
+        )
 
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None, half_or_empty: str = "half",
-              random_startpoint: bool = False):
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+        start_amount: float | Literal["random"] = 0.5,
+        random_startpoint: bool = False
+    ):
         super().reset(seed=seed)
 
-        if half_or_empty == "half":
-            self.stored_energy = (
-                    self.max_stored_energy / 2
-            )  # start with a half-full reservor
-        elif half_or_empty == "empty":
-            self.stored_energy = 0
+        # reservor starting level
+        if start_amount == "random":
+            start_amount = random.uniform(0, 1)
+
+        self.stored_energy = self.max_stored_energy * start_amount
 
         self.current_date = min(self.price_data.keys())
         self.current_price = self.price_data[self.current_date]
 
         self.terminated = False
         self.episode_data = DamEpisodeData()
+
+        # dealing with the iterator is a bit cumbersome, but much faster
+        self._set_state_iter(self.price_data)
 
         if random_startpoint:
             return self.pick_random_startpoint()
@@ -116,10 +128,13 @@ class DiscreteDamEnv(gym.Env):
         # start points to choose from
         start_points = list(self.price_data.keys())
         start_points = start_points[:-24]  # remove last day
-        start = random.choice(start_points)
+        start_date = start_points[random.randint(0, len(start_points) - 1)]
+
+        price_data = {k: v for k, v in self.price_data.items() if k >= start_date}
+        self._set_state_iter(price_data)
 
         # set the time variables
-        self.current_date = start
+        self.current_date = start_date
         self.current_price = self.price_data[self.current_date]
         self.stored_energy = 0  # start at 0 to force the agent to fill the reservoir
 
@@ -180,23 +195,29 @@ class DiscreteDamEnv(gym.Env):
 
         return flow_rate
 
+    def _set_state_iter(self, price_data: dict[datetime, float]):
+        self._state_iter = iter(price_data.items())
+
     def _set_next_state(self):
-        self.current_date += timedelta(hours=1)
-
-        if self.current_date in self.price_data:
-            self.current_price = self.price_data[self.current_date]
-
-        else:
+        try:
+            self.current_date, self.current_price = next(self._state_iter)
+        except StopIteration:
             self.terminated = True
 
     def _get_state(self):
-        return (self.current_date.hour, self._get_price_bin(), self._get_reservoir_bin())
+        return (
+            self.current_date.hour,
+            self._get_price_bin(),
+            self._get_reservoir_bin(),
+        )
 
     def _get_price_bin(self):
         return int(self.current_price // self.price_bin_size)
 
     def _get_reservoir_bin(self):
-        return int(self.stored_energy // (self.max_stored_energy / self.n_bins_reservoir))
+        return int(
+            self.stored_energy // (self.max_stored_energy / self.n_bins_reservoir)
+        )
 
     def _get_reward(self, flow: float):
         # positive flow = selling

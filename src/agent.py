@@ -1,7 +1,7 @@
 import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
-
+import random
 
 # create agent
 class Agent:
@@ -35,7 +35,7 @@ class Agent:
         return action
 
     def choose_action_eps_greedy(self, state):
-        if np.random.uniform(0, 1) < self.epsilon:
+        if random.uniform(0, 1) < self.epsilon:
             action = self.env.action_space.sample()
         else:
             # to make sure we don't default to action 0
@@ -61,7 +61,7 @@ class Agent:
         for episode in tqdm(range(n_episodes)):
 
             # reset environment
-            state = self.env.reset(half_or_empty="empty", random_startpoint=random_startpoint)  # to force the agent to fill the reservoir
+            state = self.env.reset(start_amount=0.0, random_startpoint=random_startpoint)  # to force the agent to fill the reservoir
 
             if self.epsilon_decay:
                 self.epsilon = epsilon_start * epsilon_decay ** episode
@@ -70,7 +70,7 @@ class Agent:
             terminated = False
             while not terminated:
                 action = self.make_decision(state, policy)
-                next_state, reward, terminated, info = self.env.step(action)
+                next_state, reward, terminated, *_ = self.env.step(action)
                 self.update_Q_table(state, action, reward, next_state)
                 state = next_state
 
