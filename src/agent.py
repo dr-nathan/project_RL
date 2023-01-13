@@ -15,9 +15,10 @@ class Agent:
         )
 
     def update_Q_table(self, state, action, reward, next_state, alpha: float = 0.1):
-        Qtable_index = state + (action,)
-        self.Qtable[Qtable_index] = (1 - alpha) * self.Qtable[Qtable_index] + alpha * (
-            reward + self.discount_factor * np.max(self.Qtable[next_state])
+        current_idx = *state, action
+
+        self.Qtable[current_idx] = (1 - alpha) * self.Qtable[current_idx] + alpha * (
+            reward + self.discount_factor * self.Qtable[next_state].max()
         )
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
