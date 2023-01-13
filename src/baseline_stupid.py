@@ -5,9 +5,9 @@ from environment import DamEpisodeData
 
 
 class Baseline():
-    max_stored_energy = joule_to_kwh(100000 * 1000 * 9.81 * 30)  # U = mgh
+    max_stored_energy = joule_to_mwh(100000 * 1000 * 9.81 * 30)  # U = mgh
     min_stored_energy = 0
-    max_flow_rate = joule_to_kwh(5 * 3600 * 9.81 * 30)  # 5 m^3/s to m^3/h * gh
+    max_flow_rate = joule_to_mwh(5 * 3600 * 9.81 * 30)  # 5 m^3/s to m^3/h * gh
     buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
     

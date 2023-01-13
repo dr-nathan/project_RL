@@ -21,12 +21,8 @@ def convert_dataframe(df: pd.DataFrame) -> dict[datetime, float]:
     return df["value"].to_dict()
 
 
-def joule_to_kwh(joule: float):
-    return joule / 3.6e6
-
-
-def kwh_to_joule(kwh: float):
-    return kwh * 3.6e6
+def joule_to_mwh(joule: float):
+    return joule / 3.6e9
 
 
 def cumsum(data: list[float]):
