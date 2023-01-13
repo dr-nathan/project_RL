@@ -74,7 +74,7 @@ class DiscreteDamEnv(gym.Env):
     def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
 
-        self.price_data = price_data
+        self.price_data = dict(sorted(price_data.items()))
 
         self.reset()
 
