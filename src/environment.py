@@ -69,7 +69,8 @@ class DiscreteDamEnv(gym.Env):
     buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
 
-    price_bin_size = 100
+    price_bin_size = 200
+    n_bins_reservoir = 10
 
     def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
@@ -83,9 +84,10 @@ class DiscreteDamEnv(gym.Env):
         # 2 = fill / buy
         self.action_space = spaces.Discrete(3)
 
-        # state is (hour, electricity price (bins))
-        n_bins = int(max(self.price_data.values()) // self.price_bin_size)
-        self.observation_space = spaces.MultiDiscrete([24, n_bins])
+        # state is (hour, electricity price (bins), stored energy)
+        n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
+
+        self.observation_space = spaces.MultiDiscrete([24, n_bins_price, self.n_bins_reservoir])
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
@@ -153,19 +155,18 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _apply_constrained_flow_rate(self, flow_rate: float):
-        # TODO: verify this: action 1 is selling, so there should be less water in the dam after. Changed + to -
         self.stored_energy -= flow_rate
 
         # change flow rate if we overflow
         if self.stored_energy > self.max_stored_energy:
             correction = self.stored_energy - self.max_stored_energy
-            flow_rate += correction  # TODO: changed sign here too
+            flow_rate += correction
             self.stored_energy = self.max_stored_energy
 
         # change flow rate if we store less than 0
         elif self.stored_energy < self.min_stored_energy:
             correction = self.min_stored_energy - self.stored_energy
-            flow_rate -= correction  # TODO: changed sign here too
+            flow_rate -= correction
             self.stored_energy = self.min_stored_energy
 
         return flow_rate
@@ -180,10 +181,13 @@ class DiscreteDamEnv(gym.Env):
             self.terminated = True
 
     def _get_state(self):
-        return [self.current_date.hour, self._get_price_bin()]
+        return [self.current_date.hour, self._get_price_bin(), self._get_reservoir_bin()]
 
     def _get_price_bin(self):
         return int(self.current_price // self.price_bin_size)
+
+    def _get_reservoir_bin(self):
+        return int(self.stored_energy // (self.max_stored_energy / self.n_bins_reservoir))
 
     def _get_reward(self, flow: float):
         # positive flow = selling
