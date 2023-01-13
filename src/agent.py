@@ -1,9 +1,5 @@
-from environment import DiscreteDamEnv
-from utils import convert_dataframe
-
 import gymnasium as gym
 import numpy as np
-import pandas as pd
 from tqdm import tqdm
 
 
@@ -13,25 +9,24 @@ class Agent:
         self.env = env
         self.discount_factor = discount_factor
 
-        # create Q table. Shape is hour, price, storage, action
-        self.Qtable = np.zeros((self.env.observation_space[0].n,
-                                self.env.observation_space[1].n+1,
-                                self.env.observation_space[2].n+1,
-                                self.env.action_space.n))
+        # create Q table
+        self.Qtable = np.zeros(
+            np.append(self.env.observation_space.nvec, self.env.action_space.n)
+        )
 
         print(f'self.Qtable.shape = {self.Qtable.shape}')
 
     def update_Q_table(self, state, action, reward, next_state):
         # update Q table
-        self.Qtable[state[0], state[1], state[2], action] = (
-            1 - self.alpha
-        ) * self.Qtable[state[0], state[1], state[2], action] + self.alpha * (
-            reward + self.discount_factor * np.max(self.Qtable[next_state[0], next_state[1], next_state[2]])
+        current_idx = *state, action
+
+        self.Qtable[current_idx] = (1 - self.alpha) * self.Qtable[current_idx] + self.alpha * (
+            reward + self.discount_factor * self.Qtable[next_state].max()
         )
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
         if policy == "greedy":
-            action = np.argmax(self.Qtable[state[0], state[1], state[2]])
+            action = np.argmax(self.Qtable[state])
         elif policy == "epsilon_greedy":
             action = self.choose_action_eps_greedy(state)
         else:
@@ -44,8 +39,8 @@ class Agent:
             action = self.env.action_space.sample()
         else:
             # to make sure we don't default to action 0
-            action = np.random.choice(np.flatnonzero(self.Qtable[state[0], state[1], state[2]] ==
-                                                     self.Qtable[state[0], state[1], state[2]].max()))
+            action = np.random.choice(np.flatnonzero(self.Qtable[state] ==
+                                                     self.Qtable[state].max()))
         return action
 
     def train(self, policy, n_episodes: int, epsilon: float = 0.1,
@@ -88,25 +83,4 @@ class Agent:
                 self.env.episode_data.plot()
 
         return self.episode_data
-
-
-if __name__ == '__main__':
-
-    # load data
-    train_data = pd.read_excel("../data/train.xlsx")
-    train_data = convert_dataframe(train_data)
-
-    # create environment and agent
-    environment = DiscreteDamEnv(train_data)
-    agent = Agent(environment)
-
-    # train agent
-    epsilon_decay = True
-    epsilon = 0.5  # overriden if epsilon_decay is True
-    alpha = 0.3
-    n_episodes = 1000
-    random_startpoint = True
-
-    episode_data = agent.train("epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint)
-
-    print(agent.Qtable)
+ 

@@ -1,15 +1,14 @@
-from utils import cumsum, joule_to_kwh
-
+import random
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
 import gymnasium as gym
-from gymnasium import spaces
-
 import matplotlib.pyplot as plt
 import seaborn as sns
-import numpy as np
+from gymnasium import spaces
+
+from src.utils import cumsum, joule_to_kwh
 
 
 @dataclass
@@ -38,7 +37,7 @@ class DamEpisodeData:
         axs[0].plot(self.storage)
         axs[0].set_title("Storage")
 
-        axs[1].scatter(range(len(self.action)), self.action)
+        axs[1].scatter(range(len(self.action)), self.action, s=1, marker="x")
         axs[1].set_title("Action")
 
         axs[2].plot(self.flow)
@@ -87,7 +86,7 @@ class DiscreteDamEnv(gym.Env):
         # state is (hour, electricity price (bins), stored energy)
         n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
-        self.observation_space = spaces.MultiDiscrete([24, n_bins_price, self.n_bins_reservoir])
+        self.observation_space = spaces.MultiDiscrete([24, n_bins_price+1, self.n_bins_reservoir+1])
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None, half_or_empty: str = "half",
               random_startpoint: bool = False):
@@ -117,7 +116,7 @@ class DiscreteDamEnv(gym.Env):
         # start points to choose from
         start_points = list(self.price_data.keys())
         start_points = start_points[:-24]  # remove last day
-        start = np.random.choice(start_points)
+        start = random.choice(start_points)
 
         # set the time variables
         self.current_date = start
@@ -127,17 +126,17 @@ class DiscreteDamEnv(gym.Env):
         return self._get_state()
 
     def step(self, action: int):
-        # empty
+        # empty reservor / sell
         if action == 1:
             flow_rate = self.max_flow_rate
 
-        # fill
+        # fill reservor / buy
         elif action == 2:
             flow_rate = -self.max_flow_rate
 
         # do nothing, i.e. action == 0 (default)
         else:
-            flow_rate = 0
+            flow_rate = 0.0
 
         # update the applied flow so we don't overflow or store less than 0
         applied_flow_rate = self._apply_constrained_flow_rate(flow_rate)
@@ -164,6 +163,7 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _apply_constrained_flow_rate(self, flow_rate: float):
+        # positive flow means emtpying the reservoir
         self.stored_energy -= flow_rate
 
         # change flow rate if we overflow
@@ -190,7 +190,7 @@ class DiscreteDamEnv(gym.Env):
             self.terminated = True
 
     def _get_state(self):
-        return [self.current_date.hour, self._get_price_bin(), self._get_reservoir_bin()]
+        return (self.current_date.hour, self._get_price_bin(), self._get_reservoir_bin())
 
     def _get_price_bin(self):
         return int(self.current_price // self.price_bin_size)
