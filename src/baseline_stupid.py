@@ -1,12 +1,10 @@
 from utils import *
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from environment import DamEpisodeData
 
 
-class baseline():
+class Baseline():
     max_stored_energy = joule_to_kwh(100000 * 1000 * 9.81 * 30)  # U = mgh
     min_stored_energy = 0
     max_flow_rate = joule_to_kwh(5 * 3600 * 9.81 * 30)  # 5 m^3/s to m^3/h * gh
@@ -101,13 +99,3 @@ class baseline():
 
         plt.show()
         '''
-
-        
-
-
-df = pd.read_excel('./data/train.xlsx')
-val = pd.read_excel('./data/validate.xlsx')
-a = baseline(df=df,low_perc=0.2,medium_perc=0.07,val=val) #
-a.plot_baseline()
-
-

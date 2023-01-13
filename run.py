@@ -4,7 +4,7 @@ from src.agent import Agent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
 
     # load data
     train_data_path = Path(__file__).parent / "data" / "train.xlsx"

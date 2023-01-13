@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from gymnasium import spaces
 
-from utils import cumsum, joule_to_kwh
+from src.utils import cumsum, joule_to_kwh
 
 
 @dataclass
@@ -83,7 +83,7 @@ class DiscreteDamEnv(gym.Env):
         self.action_space = spaces.Discrete(3)
 
         # state is (hour, electricity price (bins))
-        n_bins = int(max(self.price_data.values()) // self.price_bin_size)
+        n_bins = int(max(self.price_data.values()) // self.price_bin_size) + 1
         self.observation_space = spaces.MultiDiscrete([24, n_bins])
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
@@ -125,7 +125,7 @@ class DiscreteDamEnv(gym.Env):
 
         # do nothing, i.e. action == 0 (default)
         else:
-            flow_rate = 0
+            flow_rate = 0.0
 
         # update the applied flow so we don't overflow or store less than 0
         applied_flow_rate = self._apply_constrained_flow_rate(flow_rate)
@@ -179,7 +179,7 @@ class DiscreteDamEnv(gym.Env):
             self.terminated = True
 
     def _get_state(self):
-        return [self.current_date.hour, self._get_price_bin()]
+        return (self.current_date.hour, self._get_price_bin())
 
     def _get_price_bin(self):
         return int(self.current_price // self.price_bin_size)

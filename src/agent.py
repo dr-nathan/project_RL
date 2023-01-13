@@ -10,20 +10,19 @@ class Agent:
         self.discount_factor = discount_factor
 
         # create Q table
-        self.Qtable = np.zeros((self.env.observation_space[0].n,
-                                self.env.observation_space[1].n+1,
-                                self.env.action_space.n))
+        self.Qtable = np.zeros(
+            np.append(self.env.observation_space.nvec, self.env.action_space.n)
+        )
 
     def update_Q_table(self, state, action, reward, next_state, alpha: float = 0.1):
-        self.Qtable[state[0], state[1], action] = (
-            1 - alpha
-        ) * self.Qtable[state[0], state[1], action] + alpha * (
-            reward + self.discount_factor * np.max(self.Qtable[next_state[0], next_state[1]])
+        Qtable_index = state + (action,)
+        self.Qtable[Qtable_index] = (1 - alpha) * self.Qtable[Qtable_index] + alpha * (
+            reward + self.discount_factor * np.max(self.Qtable[next_state])
         )
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
         if policy == "greedy":
-            action = np.argmax(self.Qtable[state[0], state[1]])
+            action = np.argmax(self.Qtable[state])
         elif policy == "epsilon_greedy":
             action = self.choose_action_eps_greedy(state, self.epsilon)
         else:
@@ -35,7 +34,7 @@ class Agent:
         if np.random.uniform(0, 1) < epsilon:
             action = self.env.action_space.sample()
         else:
-            action = np.argmax(self.Qtable[state[0], state[1]])
+            action = np.argmax(self.Qtable[state])
         return action
 
     def train(self, policy, n_episodes: int, epsilon: float = 0.1, alpha: float = 0.1):
