@@ -89,17 +89,25 @@ class DiscreteDamEnv(gym.Env):
 
         self.observation_space = spaces.MultiDiscrete([24, n_bins_price, self.n_bins_reservoir])
 
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
+    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None, half_or_empty: str = "half",
+              random_startpoint: bool = False):
         super().reset(seed=seed)
 
-        self.stored_energy = (
-            self.max_stored_energy / 2
-        )  # start with a half-full reservor
+        if half_or_empty == "half":
+            self.stored_energy = (
+                    self.max_stored_energy / 2
+            )  # start with a half-full reservor
+        elif half_or_empty == "empty":
+            self.stored_energy = 0
+
         self.current_date = min(self.price_data.keys())
         self.current_price = self.price_data[self.current_date]
 
         self.terminated = False
         self.episode_data = DamEpisodeData()
+
+        if random_startpoint:
+            return self.pick_random_startpoint()
 
         return self._get_state()
 
@@ -114,6 +122,7 @@ class DiscreteDamEnv(gym.Env):
         # set the time variables
         self.current_date = start
         self.current_price = self.price_data[self.current_date]
+        self.stored_energy = 0  # start at 0 to force the agent to fill the reservoir
 
         return self._get_state()
 
