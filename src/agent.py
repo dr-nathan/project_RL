@@ -1,15 +1,12 @@
-import random
-
 import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 import random
-from typing import Literal
 
 
 # create agent
 class Agent:
-    def __init__(self, env: gym.Env, discount_factor: float = 0.995):
+    def __init__(self, env: gym.Env, discount_factor: float = 0.99):
         self.env = env
         self.discount_factor = discount_factor
 
@@ -52,7 +49,7 @@ class Agent:
         policy,
         n_episodes: int,
         epsilon: float = 0.1,
-        epsilon_decay=False,
+        epsilon_decay: bool = False,
         alpha: float = 0.1,
         random_startpoint: bool = False,
         start_amount: float = 0.5,
@@ -62,10 +59,10 @@ class Agent:
         self.epsilon_decay = epsilon_decay
         self.episode_data = []
 
-        if epsilon_decay:
+        if self.epsilon_decay:
             epsilon_start = 1
             epsilon_end = 0.01
-            epsilon_decay = np.exp(np.log(epsilon_end / epsilon_start) / n_episodes)
+            epsilon_decay_step = np.exp(np.log(epsilon_end / epsilon_start) / n_episodes)
         else:
             self.epsilon = epsilon
 
@@ -77,7 +74,7 @@ class Agent:
             state = self.env.reset(random_startpoint=random_startpoint, start_amount=start_amount)
 
             if self.epsilon_decay:
-                self.epsilon = epsilon_start * epsilon_decay ** episode
+                self.epsilon = epsilon_start * epsilon_decay_step ** episode
 
             terminated = False
             while not terminated:
@@ -89,7 +86,7 @@ class Agent:
             # store average reward
             # self.episode_data.append(self.env.episode_data)
 
-            if (episode + 1) % 100 == 0:
-                self.env.episode_data.plot()
+            #if (episode + 1) % 100 == 0:
+            #    self.env.episode_data.plot()
 
         return self.episode_data

@@ -3,7 +3,6 @@ from pathlib import Path
 from src.agent import Agent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
-import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
 
@@ -17,10 +16,10 @@ if __name__ == "__main__":
 
     # train agent
     epsilon_decay = True
-    epsilon = 0.5  # overriden if epsilon_decay is True
+    epsilon = 0.2  # overriden if epsilon_decay is True
     alpha = 0.3
-    n_episodes = 100
-    random_startpoint = True
+    n_episodes = 1000
+    random_startpoint = False
 
     episode_data = agent.train(
         "epsilon_greedy",
@@ -28,7 +27,7 @@ if __name__ == "__main__":
         epsilon,
         epsilon_decay,
         alpha,
-        random_startpoint,
+        random_startpoint
     )
 
     agent.env.episode_data.plot()
