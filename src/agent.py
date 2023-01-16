@@ -1,3 +1,5 @@
+import random
+
 import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
@@ -17,12 +19,13 @@ class Agent:
         )
 
     def update_Q_table(self, state, action, reward, next_state):
-        # update Q table
-        current_idx = *state, action
+        q_next = self.Qtable[next_state].max()
+        q_current_idx = *state, action
 
-        self.Qtable[current_idx] = (1 - self.alpha) * self.Qtable[current_idx] + self.alpha * (
-            reward + self.discount_factor * self.Qtable[next_state].max()
-        )
+        # update Q table
+        self.Qtable[q_current_idx] = (1 - self.alpha) * self.Qtable[
+            q_current_idx
+        ] + self.alpha * (reward + self.discount_factor * q_next)
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
         if policy == "greedy":
@@ -39,13 +42,21 @@ class Agent:
             action = self.env.action_space.sample()
         else:
             # to make sure we don't default to action 0
-            action = np.random.choice(np.flatnonzero(self.Qtable[state] ==
-                                                     self.Qtable[state].max()))
+            action = np.random.choice(
+                np.flatnonzero(self.Qtable[state] == self.Qtable[state].max())
+            )
         return action
 
-    def train(self, policy, n_episodes: int, epsilon: float = 0.1,
-              epsilon_decay = False, alpha: float = 0.1,
-              random_startpoint: bool = False, start_amount: float | Literal["random"] = 0.5):
+    def train(
+        self,
+        policy,
+        n_episodes: int,
+        epsilon: float = 0.1,
+        epsilon_decay=False,
+        alpha: float = 0.1,
+        random_startpoint: bool = False,
+        start_amount: float = 0.5,
+    ):
 
         # intitialize stuff
         self.epsilon_decay = epsilon_decay
@@ -76,7 +87,7 @@ class Agent:
                 state = next_state
 
             # store average reward
-            self.episode_data.append(self.env.episode_data)
+            # self.episode_data.append(self.env.episode_data)
 
             if (episode + 1) % 100 == 0:
                 self.env.episode_data.plot()
