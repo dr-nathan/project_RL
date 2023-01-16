@@ -78,7 +78,7 @@ class DiscreteDamEnv(gym.Env):
     # a positive flow means emtpying the reservoir
     max_flow_rate = joule_to_mwh(5 * 1000 * 3600 * 9.81 * 30)  # 5 m^3/s to mwh
 
-    buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
+    buy_multiplier = 1.25  # i.e. we spend 1.25 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
 
     n_bins_price = 20
