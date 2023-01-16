@@ -38,9 +38,12 @@ class DamEpisodeData:
         self.price.append(price)
         self.reward.append(reward)
 
-    def plot(self):
+    def plot(self, title: str | None = None):
         sns.set()
         fig, axs = plt.subplots(6, 1, figsize=(10, 10), sharex=True)
+
+        if title:
+            fig.suptitle(title)
 
         axs[0].plot(self.date, self.storage)
         axs[0].set_title("Storage")
@@ -108,9 +111,15 @@ class DiscreteDamEnv(gym.Env):
         seed: int | None = None,
         options: dict[str, Any] | None = None,
         start_amount: float | Literal["random"] = 0.5,
-        random_startpoint: bool = False
+        random_startpoint: bool = False,
+        price_data: dict[datetime, float] | None = None,
     ):
         super().reset(seed=seed)
+
+        if price_data:
+            self.price_data = dict(sorted(price_data.items()))
+        else:
+            assert self.price_data and len(self.price_data) > 0, "No price data provided"
 
         # reservor starting level
         if start_amount == "random":

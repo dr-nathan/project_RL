@@ -1,7 +1,9 @@
+import random
+from datetime import datetime
+
 import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
-import random
 
 
 # create agent
@@ -62,7 +64,9 @@ class Agent:
         if self.epsilon_decay:
             epsilon_start = 1
             epsilon_end = 0.01
-            epsilon_decay_step = np.exp(np.log(epsilon_end / epsilon_start) / n_episodes)
+            epsilon_decay_step = np.exp(
+                np.log(epsilon_end / epsilon_start) / n_episodes
+            )
         else:
             self.epsilon = epsilon
 
@@ -71,11 +75,14 @@ class Agent:
         for episode in tqdm(range(n_episodes)):
 
             # reset environment
-            state = self.env.reset(random_startpoint=random_startpoint, start_amount=start_amount)
+            state = self.env.reset(
+                random_startpoint=random_startpoint, start_amount=start_amount
+            )
 
             if self.epsilon_decay:
-                self.epsilon = epsilon_start * epsilon_decay_step ** episode
+                self.epsilon = epsilon_start * epsilon_decay_step**episode
 
+            # play until episode is terminated
             terminated = False
             while not terminated:
                 action = self.make_decision(state, policy)
@@ -86,7 +93,29 @@ class Agent:
             # store average reward
             # self.episode_data.append(self.env.episode_data)
 
-            #if (episode + 1) % 100 == 0:
+            # if (episode + 1) % 100 == 0:
             #    self.env.episode_data.plot()
 
         return self.episode_data
+
+    def validate(
+        self,
+        price_data: dict[datetime, float],
+        random_startpoint: bool = False,
+        start_amount: float = 0.5,
+    ):
+        # reset environment
+        state = self.env.reset(
+            price_data=price_data,
+            random_startpoint=random_startpoint,
+            start_amount=start_amount,
+        )
+
+        # play until episode is terminated
+        terminated = False
+        while not terminated:
+            action = self.make_decision(state, "greedy")
+            next_state, _, terminated, *_ = self.env.step(action)
+            state = next_state
+
+        return self.env.episode_data
