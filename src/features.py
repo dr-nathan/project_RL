@@ -126,7 +126,6 @@ def main():
     print(m)
     s = df_new.groupby(['week_day'])['price'].std()
     x = np.linspace(0, 7, 7)  
-    #mon = s.get_group(0)
     #plot(x,m,s,'weekday')
 
 
@@ -138,11 +137,11 @@ def main():
     m = df_new.groupby(['hour'])['price'].mean()
     s = df_new.groupby(['hour'])['price'].std()
     x = np.linspace(0, 24, 24)  
-    #plot(x,m,s,'month')
+    #plot(x,m,s,'hour')
 
     a = df_new.groupby(['week_day'])
     plot_hour_day(a)
-    
+
     b = df_new.groupby(['month'])
     plot_hour_month(b)
 

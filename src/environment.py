@@ -194,8 +194,7 @@ class DiscreteDamEnv(gym.Env):
         if i > self.medium_min_max[0] and i <= self.medium_min_max[1] : return 1
         if i > self.high_min_max[0] and i <= self.high_min_max[1]: return 2
 
-    def get_volatility(self):
-            
+
 
     def _get_reward(self, flow: float):
         # positive flow = selling
