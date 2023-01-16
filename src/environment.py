@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from gymnasium import spaces
 
-from src.utils import cumsum, joule_to_mwh
+from src.utils import cumsum, joule_to_mwh, add_range_prices
 
 
 @dataclass
@@ -74,6 +74,7 @@ class DiscreteDamEnv(gym.Env):
         super().__init__()
 
         self.price_data = price_data
+        self.low_min_max, self.medium_min_max, self.high_min_max = add_range_prices(self.price_data,0.2,0.7)
 
         self.reset()
 
@@ -84,7 +85,9 @@ class DiscreteDamEnv(gym.Env):
 
         # state is (hour, electricity price (bins))
         n_bins = int(max(self.price_data.values()) // self.price_bin_size) + 1
-        self.observation_space = spaces.MultiDiscrete([24, n_bins])
+        n_range_price = 3
+        self.observation_space = spaces.MultiDiscrete([24, n_bins,n_range_price ])
+        #self.observation_space = spaces.MultiDiscrete([24, n_bins])
 
     def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
         super().reset(seed=seed)
@@ -179,10 +182,20 @@ class DiscreteDamEnv(gym.Env):
             self.terminated = True
 
     def _get_state(self):
-        return (self.current_date.hour, self._get_price_bin())
+        return (self.current_date.hour, self._get_price_bin(),self.get_class_price_bin())
+        #eturn (self.current_date.hour, self._get_price_bin())
 
     def _get_price_bin(self):
         return int(self.current_price // self.price_bin_size)
+
+    def get_class_price_bin(self):
+        i = self.current_price
+        if i >= self.low_min_max[0] and i <= self.low_min_max[1]: return 0
+        if i > self.medium_min_max[0] and i <= self.medium_min_max[1] : return 1
+        if i > self.high_min_max[0] and i <= self.high_min_max[1]: return 2
+
+    def get_volatility(self):
+            
 
     def _get_reward(self, flow: float):
         # positive flow = selling
