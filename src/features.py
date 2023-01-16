@@ -114,6 +114,26 @@ def plot_hour_season(a):
     plt.show()
 
 
+def get_low_medium_high_price(df,low_perc=0.2,medium_perc=0.7):
+    #divide prices in low medium high according to given percentage
+    #df = df['price']
+    df = list(df)
+    low,medium,high = df[0:int((low_perc*len(df)))], df[int((low_perc*len(df))):int(((medium_perc+low_perc)*len(df)))], df[int((medium_perc+low_perc)*len(df)):]
+    low_min_max, medium_min_max, high_min_max= (low[0],low[-1]), (medium[0],medium[-1]), (high[0],high[-1])
+
+    for i in df:   
+
+        if i >= low_min_max[0] and i <= low_min_max[1] :
+            return 0
+        if i > medium_min_max[0] and i <= medium_min_max[1] :   
+            return 1
+        else:
+            return 2
+
+        
+    #return low_min_max, medium_min_max, high_min_max    
+
+
 def main():
     df = pd.read_excel("./data/train.xlsx")
     dict = convert_dataframe(df)
@@ -122,11 +142,14 @@ def main():
 
     df_new = pd.DataFrame()
     df_new['time'] = [*dict.keys()]
+    df_new['price'] = [*dict.values()]
     df_new['week_day'] = [i.weekday() for i in df_new['time']]
     df_new['month'] = df_new['time'].dt.strftime('%m')
     df_new['hour'] = df_new['time'].dt.strftime('%H')
-    df_new['price'] = [*dict.values()]
+    
     df_new['season'] =  df_new.apply(season, axis=1)
+    df_new['price_range'] = get_low_medium_high_price(df_new['price'])
+    print(df_new)
     
     #a = pd.DataFrame()
     #a['time'] =df_new['time']
