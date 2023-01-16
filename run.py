@@ -1,8 +1,9 @@
-import pandas as pd
-from pathlib import Path
 from src.agent import Agent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
+
+import pandas as pd
+from pathlib import Path
 
 if __name__ == "__main__":  
 
@@ -14,7 +15,7 @@ if __name__ == "__main__":
     environment = DiscreteDamEnv(train_data)
 
     agent = Agent(environment)
-    episode_data = agent.train("epsilon_greedy", 30, epsilon=0.2, alpha=0.1)
+    episode_data = agent.train("epsilon_greedy", 500, epsilon=0.2, alpha=0.2)
 
     print(agent.Qtable)
     agent.env.episode_data.plot()
