@@ -10,6 +10,8 @@ class Agent:
         self.env = env
         self.discount_factor = discount_factor
 
+        self.price_cap = 150
+
         # create Q table
         self.Qtable = np.zeros(
             np.append(self.env.observation_space.nvec, self.env.action_space.n)

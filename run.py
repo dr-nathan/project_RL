@@ -8,10 +8,10 @@ if __name__ == "__main__":
 
     # load data
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
-    train_data = convert_dataframe(train_data)
+    train_data, train_data_real = convert_dataframe(train_data)
 
     # create environment and agent
-    environment = DiscreteDamEnv(train_data)
+    environment = DiscreteDamEnv(train_data, train_data_real)
     agent = Agent(environment)
 
     # train agent
@@ -31,3 +31,4 @@ if __name__ == "__main__":
     )
 
     agent.env.episode_data.plot()
+    agent.env.plot_price_distribution()
