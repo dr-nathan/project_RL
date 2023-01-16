@@ -76,18 +76,20 @@ class DiscreteDamEnv(gym.Env):
     )  # 100000 m^3 to mwh with U = mgh
     min_stored_energy = 0
     # a positive flow means emtpying the reservoir
-    max_flow_rate = joule_to_mwh(5 * 3600 * 1000 * 9.81 * 30)  # 5 m^3/s to mwh
+    max_flow_rate = joule_to_mwh(5 * 1000 * 3600 * 9.81 * 30)  # 5 m^3/s to mwh
 
-    buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
+    buy_multiplier = 1.25  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
 
-    price_bin_size = 200
+    n_bins_price = 20
     n_bins_reservoir = 10
 
-    def __init__(self, price_data: dict[datetime, float]):
+    def __init__(self, price_data: dict[datetime, float], price_data_real: dict[datetime, float]):
         super().__init__()
 
-        self.reset(price_data=price_data)
+        self.price_data = dict(sorted(price_data.items()))
+        self.max_price = max(self.price_data.values())
+        self.price_data_real = dict(sorted(price_data_real.items()))
 
         # 0 = do nothing
         # 1 = empty / sell
@@ -95,11 +97,13 @@ class DiscreteDamEnv(gym.Env):
         self.action_space = spaces.Discrete(3)
 
         # state is (hour, electricity price (bins), stored energy)
-        n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
+        # n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
         self.observation_space = spaces.MultiDiscrete(
-            [24, 12, n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24, 12, self.n_bins_price + 1, self.n_bins_reservoir + 1]
         )
+
+        self.reset()
 
     def reset(
         self,
@@ -233,7 +237,7 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _get_price_bin(self):
-        return int(self.current_price // self.price_bin_size)
+        return int(self.current_price // (self.max_price / self.n_bins_price))
 
     def _get_reservoir_bin(self):
         return int(
@@ -241,9 +245,19 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _get_reward(self, flow: float):
+
+        # price seen by agent is different than real price. Use real price to calculate reward,
+        # but use agent price to calculate state
+        real_price = self.price_data_real[self.current_date]
+
         # positive flow = selling
         if flow > 0:
-            return flow * self.sell_multiplier * self.current_price
+            return flow * self.sell_multiplier * real_price
 
         # negative flow = buying
-        return flow * self.buy_multiplier * self.current_price
+        return flow * self.buy_multiplier * real_price
+
+    def plot_price_distribution(self):
+        prices = list(self.price_data.values())
+        plt.hist(prices, bins=100)
+        plt.show()

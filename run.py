@@ -10,14 +10,14 @@ if __name__ == "__main__":
 
     # load data
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
-    train_data = convert_dataframe(train_data)
+    train_data, train_data_real = convert_dataframe(train_data)
 
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
     val_data = convert_dataframe(val_data)
 
     # create environment and agent
-    train_env = DiscreteDamEnv(train_data)
-    agent = Agent(train_env)
+    environment = DiscreteDamEnv(train_data, train_data_real)
+    agent = Agent(environment)
 
     # train agent
     epsilon_decay = True
@@ -30,8 +30,12 @@ if __name__ == "__main__":
         "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint
     )
 
+
+    agent.env.episode_data.plot()
+    agent.env.plot_price_distribution()
     agent.env.episode_data.plot("Final training episode")
 
     # validate agent
     agent.validate(price_data=val_data)
     agent.env.episode_data.plot("Validation episode")
+
