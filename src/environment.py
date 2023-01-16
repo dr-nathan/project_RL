@@ -87,7 +87,7 @@ class DiscreteDamEnv(gym.Env):
         n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
         self.observation_space = spaces.MultiDiscrete(
-            [24, n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24,12, n_bins_price + 1, self.n_bins_reservoir + 1]
         )
 
     def reset(
@@ -134,7 +134,11 @@ class DiscreteDamEnv(gym.Env):
         # set the time variables
         self.current_date = start_date
         self.current_price = self.price_data[self.current_date]
-        self.stored_energy = 0  # start at 0 to force the agent to fill the reservoir
+        
+        # set the reservoir level
+        self.stored_energy = random.uniform(
+            self.min_stored_energy, self.max_stored_energy
+        )
 
         return self._get_state()
 
@@ -205,6 +209,7 @@ class DiscreteDamEnv(gym.Env):
     def _get_state(self):
         return (
             self.current_date.hour,
+            self.current_date.month - 1,
             self._get_price_bin(),
             self._get_reservoir_bin(),
         )
