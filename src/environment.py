@@ -15,6 +15,7 @@ from src.utils import cumsum, joule_to_mwh
 class DamEpisodeData:
     """Dataclass to store episode data for a dam environment"""
 
+    date: list[datetime] = field(default_factory=list)
     storage: list[float] = field(default_factory=list)
     action: list[float] = field(default_factory=list)
     flow: list[float] = field(default_factory=list)
@@ -22,8 +23,15 @@ class DamEpisodeData:
     reward: list[float] = field(default_factory=list)
 
     def add(
-        self, storage: float, action: float, flow: float, price: float, reward: float
+        self,
+        date: datetime,
+        storage: float,
+        action: float,
+        flow: float,
+        price: float,
+        reward: float,
     ):
+        self.date.append(date)
         self.storage.append(storage)
         self.action.append(action)
         self.flow.append(flow)
@@ -32,24 +40,24 @@ class DamEpisodeData:
 
     def plot(self):
         sns.set()
-        fig, axs = plt.subplots(6, 1, figsize=(10, 10))
+        fig, axs = plt.subplots(6, 1, figsize=(10, 10), sharex=True)
 
-        axs[0].plot(self.storage)
+        axs[0].plot(self.date, self.storage)
         axs[0].set_title("Storage")
 
-        axs[1].scatter(range(len(self.action)), self.action, s=1, marker="x")
+        axs[1].scatter(self.date, self.action, s=1, marker="x")
         axs[1].set_title("Action")
 
-        axs[2].plot(self.flow)
+        axs[2].plot(self.date, self.flow)
         axs[2].set_title("Flow")
 
-        axs[3].plot(self.price)
+        axs[3].plot(self.date, self.price)
         axs[3].set_title("Price")
 
-        axs[4].plot(self.reward)
+        axs[4].plot(self.date, self.reward)
         axs[4].set_title("Reward")
 
-        axs[5].plot(cumsum(self.reward))
+        axs[5].plot(self.date, cumsum(self.reward))
         axs[5].set_title("Cumulative reward")
 
         fig.tight_layout()
@@ -60,10 +68,12 @@ class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
 
     # static properties
-    max_stored_energy = joule_to_mwh(100000 * 1000 * 9.81 * 30)  # U = mgh
+    max_stored_energy = joule_to_mwh(
+        100000 * 1000 * 9.81 * 30
+    )  # 100000 m^3 to mwh with U = mgh
     min_stored_energy = 0
     # a positive flow means emtpying the reservoir
-    max_flow_rate = joule_to_mwh(5 * 3600 * 9.81 * 30)  # 5 m^3/s to m^3/h * gh
+    max_flow_rate = joule_to_mwh(5 * 3600 * 1000 * 9.81 * 30)  # 5 m^3/s to mwh
 
     buy_multiplier = 1.2  # i.e. we spend 1.2 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
@@ -87,7 +97,7 @@ class DiscreteDamEnv(gym.Env):
         n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
         self.observation_space = spaces.MultiDiscrete(
-            [24,12, n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24, 12, n_bins_price + 1, self.n_bins_reservoir + 1]
         )
 
     def reset(
@@ -134,7 +144,7 @@ class DiscreteDamEnv(gym.Env):
         # set the time variables
         self.current_date = start_date
         self.current_price = self.price_data[self.current_date]
-        
+
         # set the reservoir level
         self.stored_energy = random.uniform(
             self.min_stored_energy, self.max_stored_energy
@@ -164,6 +174,7 @@ class DiscreteDamEnv(gym.Env):
 
         # store episode data
         self.episode_data.add(
+            self.current_date,
             self.stored_energy,
             action,
             applied_flow_rate,

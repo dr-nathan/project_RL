@@ -32,14 +32,3 @@ if __name__ == "__main__":
     )
 
     agent.env.episode_data.plot()
-
-    q = agent.Qtable
-    q_mean = q.mean(
-        axis=tuple(range(1, len(agent.env.observation_space.nvec)))
-    )  # collapse all but the first and last dimension
-    plt.plot(q_mean[:, 0], label="buy")
-    plt.plot(q_mean[:, 1], label="sell")
-    plt.ylabel("Q-value")
-    plt.xlabel("Hour")
-    plt.legend()
-    plt.plot()
