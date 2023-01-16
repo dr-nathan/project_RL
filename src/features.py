@@ -17,14 +17,14 @@ def plot_vol(prices_train):
     returns.fillna(0, inplace=True)
     volatility = returns.rolling(window=TRADING_DAYS).std()*np.sqrt(TRADING_DAYS)
     volatility.tail()
-    print(len(volatility))
+    #print(len(volatility))
     #print(volatility)
     nan_count = volatility.isna().sum()
-    print(nan_count)
+    #print(nan_count)
     diff_vol_years = volatility[TRADING_DAYS:TRADING_DAYS+TRADING_DAYS] - volatility[TRADING_DAYS+TRADING_DAYS:len(volatility)]
     #print(diff_vol_years)
-    print(len(volatility[TRADING_DAYS:TRADING_DAYS+TRADING_DAYS] ))
-    print(len(volatility[TRADING_DAYS+TRADING_DAYS:len(volatility)]))
+    #print(len(volatility[TRADING_DAYS:TRADING_DAYS+TRADING_DAYS] ))
+    #print(len(volatility[TRADING_DAYS+TRADING_DAYS:len(volatility)]))
     #print(diff_vol_years.isna().sum())
     #print(volatility[365:365+365])
     #print( volatility[TRADING_DAYS+TRADING_DAYS:len(volatility)])
@@ -92,7 +92,26 @@ def plot_hour_day(a):
     plt.show()
 
 
+def season(df):
+    
+    if df['month'] in ['01' ,'02' ,'03']:
+        return 1
+    elif df['month'] in ['04' ,'05' , '06']:
+        return 2
+    elif df['month'] in ['07' , '08' , '09']:
+        return 3
+    elif df['month'] in [ '10' , '11' , '12']:
+        return 4    
 
+
+def plot_hour_season(a):
+    plt.plot(a.get_group(1).groupby(['hour'])['price'].mean(),label='Winter')
+    plt.plot(a.get_group(2).groupby(['hour'])['price'].mean(),label='Spring')
+    plt.plot(a.get_group(3).groupby(['hour'])['price'].mean(),label='Summer')
+    plt.plot(a.get_group(4).groupby(['hour'])['price'].mean(),label='Autumn')
+
+    plt.legend()
+    plt.show()
 
 
 def main():
@@ -107,7 +126,7 @@ def main():
     df_new['month'] = df_new['time'].dt.strftime('%m')
     df_new['hour'] = df_new['time'].dt.strftime('%H')
     df_new['price'] = [*dict.values()]
-    
+    df_new['season'] =  df_new.apply(season, axis=1)
     
     #a = pd.DataFrame()
     #a['time'] =df_new['time']
@@ -123,7 +142,6 @@ def main():
 
 
     m = df_new.groupby(['week_day'])['price'].mean()
-    print(m)
     s = df_new.groupby(['week_day'])['price'].std()
     x = np.linspace(0, 7, 7)  
     #plot(x,m,s,'weekday')
@@ -144,6 +162,9 @@ def main():
 
     b = df_new.groupby(['month'])
     plot_hour_month(b)
+
+    c = df_new.groupby(['season'])
+    plot_hour_season(c)
 
 
 
