@@ -4,11 +4,15 @@ from datetime import datetime
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+import torch.nn as nn
 from tqdm import tqdm
+
+from src.utils import DEVICE
 
 
 # create agent
-class Agent:
+class QLearnAgent:
     # TODO: look into making discount factor dynamic
     def __init__(self, env: gym.Env, discount_factor: float = 0.98):
         self.env = env
@@ -30,23 +34,23 @@ class Agent:
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
         if policy == "greedy":
-            action = np.argmax(self.Qtable[state])
-        elif policy == "epsilon_greedy":
-            action = self.choose_action_eps_greedy(state)
-        else:
-            raise ValueError("Unknown policy")
+            return np.argmax(self.Qtable[state])
 
-        return action
+        if policy == "epsilon_greedy":
+            return self.choose_action_eps_greedy(state)
+
+        raise ValueError("Unknown policy")
 
     def choose_action_eps_greedy(self, state):
         if random.uniform(0, 1) < self.epsilon:
-            action = self.env.action_space.sample()
-        else:
-            # to make sure we don't default to action 0
-            action = np.random.choice(
-                np.flatnonzero(self.Qtable[state] == self.Qtable[state].max())
-            )
-        return action
+            return self.env.action_space.sample()
+
+        # nonzero to make sure we don't default to action 0
+        best_actions = np.flatnonzero(self.Qtable[state] == self.Qtable[state].max())
+        if len(best_actions) == 1:
+            return best_actions[0]
+
+        return random.choice(best_actions)
 
     def train(
         self,
@@ -117,6 +121,8 @@ class Agent:
             action = self.make_decision(state, "greedy")
             next_state, _, terminated, *_ = self.env.step(action)
             state = next_state
+            
+        return self.env.episode_data
 
     def plot_rewards_over_episode(self):
         plt.plot(self.tot_reward)
@@ -163,3 +169,87 @@ class Agent:
         plt.set_cmap("viridis")
         plt.show()
 
+    def save(self, path: str):
+        np.save(path, self.Qtable)
+
+    def load(self, path: str):
+        self.Qtable = np.load(path)
+
+
+class PolicyNetwork(nn.Module):
+    def __init__(self, state_size, action_size):
+        super(PolicyNetwork, self).__init__()
+        self.fc1 = nn.Linear(state_size, 24)
+        self.fc2 = nn.Linear(24, action_size)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))
+        x = self.fc2(x)
+        x = self.softmax(x)
+        return x
+
+
+class PolicyGradientAgent:
+    def __init__(self, learning_rate: float, env: gym.Env):
+        self.env = env
+        self.state_size = len(env.observation_space.nvec)
+        self.action_size = env.action_space.n
+
+        self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(DEVICE)
+        self.optimizer = torch.optim.Adam(
+            self.policy_network.parameters(), lr=learning_rate
+        )
+
+    def get_action(self, state):
+        state = torch.tensor(state).to(DEVICE).float().unsqueeze(0)
+        probs = self.policy_network(state)
+        action = torch.multinomial(probs, 1)
+
+        return action.item()
+
+    def update_policy(self, rewards, log_probs):
+        returns = log_probs * rewards
+        policy_loss = -returns.mean()
+        policy_loss.requires_grad = True
+        self.optimizer.zero_grad()
+        policy_loss.backward()
+        self.optimizer.step()
+
+    def train(self, n_episodes):
+        for _ in tqdm(range(n_episodes)):
+            state = self.env.reset()
+            log_probs = []
+            rewards = []
+            terminated = False
+            i = 0
+
+            while not terminated:
+                i += 1
+
+                action = self.get_action(state)
+                next_state, reward, terminated, *_ = self.env.step(action)
+                log_probs.append(
+                    torch.log(
+                        self.policy_network(
+                            torch.tensor(state).to(DEVICE).float().unsqueeze(0)
+                        )[0, action]
+                    )
+                )
+                rewards.append(reward)
+                state = next_state
+
+            self.update_policy(torch.tensor(rewards), torch.tensor(log_probs))
+
+        return self.env.episode_data
+
+    def validate(self, price_data: dict[datetime, float]):
+        state = self.env.reset(price_data=price_data)
+        terminated = False
+
+        while not terminated:
+            action = self.get_action(state)
+            next_state, _, terminated, *_ = self.env.step(action)
+            state = next_state
+
+        return self.env.episode_data

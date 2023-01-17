@@ -1,15 +1,12 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.agent import QLearnAgent
+from src.agent import PolicyGradientAgent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
 
 if __name__ == "__main__":
-
-    DEBUG = True
 
     # load data
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
@@ -23,28 +20,20 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = DiscreteDamEnv(train_data, 200)
-    agent = QLearnAgent(environment)
+    agent = PolicyGradientAgent(learning_rate=0.1, env=environment)
 
     # train agent
-    epsilon_decay = False
-    epsilon = 1  # overriden if epsilon_decay is True
-    alpha = 0.1
-    n_episodes = 700
+    epsilon_decay = True
+    epsilon = 0.2  # overriden if epsilon_decay is True
+    alpha = 0.3
+    n_episodes = 5
     random_startpoint = False
 
-    agent.train(
-        "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint
-    )
+    episode_data = agent.train(n_episodes)
 
-    if DEBUG:
-        agent.plot_rewards_over_episode()
-        agent.env.plot_price_distribution()
-        agent.env.episode_data.debug_plot("Final training episode")
+    agent.env.plot_price_distribution()
+    agent.env.episode_data.plot("Final training episode")
 
     # validate agent
     agent.validate(price_data=val_data)
-    agent.env.episode_data.debug_plot("Validation episode")
-
-    # plot Q table
-    agent.visualize_Q_table()
-
+    agent.env.episode_data.plot("Validation episode")

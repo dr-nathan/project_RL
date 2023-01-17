@@ -1,6 +1,10 @@
 from datetime import datetime
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import torch
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # convert dateframe
@@ -38,22 +42,20 @@ def cumsum(data: list[float]):
     return res
 
 
-
-def add_range_prices(dict: dict,low, medium):
-    #df = convert_dataframe(df_original)
+def add_range_prices(dict: dict, low, medium):
+    # df = convert_dataframe(df_original)
     df = [*dict.values()]
-    df= np.sort(df)
+    df = np.sort(df)
 
-    low,medium,high = df[0:int((low*len(df)))],df[int((low*len(df))):int(((medium+low)*len(df)))], df[int((medium+low)*len(df)):]
-    low_min_max, medium_min_max, high_min_max= (low[0],low[-1]), (medium[0],medium[-1]), (high[0],high[-1])
+    low, medium, high = (
+        df[0 : int((low * len(df)))],
+        df[int((low * len(df))) : int(((medium + low) * len(df)))],
+        df[int((medium + low) * len(df)) :],
+    )
+    low_min_max, medium_min_max, high_min_max = (
+        (low[0], low[-1]),
+        (medium[0], medium[-1]),
+        (high[0], high[-1]),
+    )
 
     return low_min_max, medium_min_max, high_min_max
-
-
-
-
-
-
-
-
-
