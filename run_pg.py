@@ -26,14 +26,14 @@ if __name__ == "__main__":
     epsilon_decay = True
     epsilon = 0.2  # overriden if epsilon_decay is True
     alpha = 0.3
-    n_episodes = 5
+    n_episodes = 20
     random_startpoint = False
 
     episode_data = agent.train(n_episodes)
 
     agent.env.plot_price_distribution()
-    agent.env.episode_data.plot("Final training episode")
+    agent.env.episode_data.plot_debug("Final training episode")
 
     # validate agent
     agent.validate(price_data=val_data)
-    agent.env.episode_data.plot("Validation episode")
+    agent.env.episode_data.plot_debug("Validation episode")
