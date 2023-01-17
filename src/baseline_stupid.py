@@ -20,7 +20,7 @@ class Baseline:
             self.prices_val
         )  # sort prices overall - maybe could do that per month or year?? I sort them such that then I can take the percentages
 
-    def fit(
+    def fit2(
         self, training_data: dict[datetime, float], low_perc: float, medium_perc: float
     ):
         self.low_perc = low_perc
@@ -119,4 +119,4 @@ class Baseline:
             raise ValueError(f"Strategy {strategy} not implemented")
 
         if plot:
-            data.plot(**kwargs)
+            data.plot_fancy()

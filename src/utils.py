@@ -50,6 +50,18 @@ def add_range_prices(dict: dict,low, medium):
     return low_min_max, medium_min_max, high_min_max
 
 
+def plt_col(lst):
+    cols=[]
+    for l in lst:
+        if l==0:
+            cols.append('green')
+        elif l==1:
+            cols.append('blue')
+        else:
+            cols.append('red')
+    return cols    
+
+
 
 
 

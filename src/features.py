@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from src.utils import *
+from utils import *
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -62,38 +62,53 @@ def plot(x,mean, std,what):
 
 
 def plot_hour_month(b):
-    plt.plot(b.get_group('01').groupby(['hour'])['price'].mean(),label='Jan')
-    plt.plot(b.get_group('02').groupby(['hour'])['price'].mean(),label='Feb')
-    plt.plot(b.get_group('03').groupby(['hour'])['price'].mean(),label='March')
-    plt.plot(b.get_group('04').groupby(['hour'])['price'].mean(),label='April')
-    plt.plot(b.get_group('05').groupby(['hour'])['price'].mean(),label='May')
-    plt.plot(b.get_group('06').groupby(['hour'])['price'].mean(),label='June')
-    plt.plot(b.get_group('07').groupby(['hour'])['price'].mean(),label='July')
-    plt.plot(b.get_group('08').groupby(['hour'])['price'].mean(),label='August')
-    plt.plot(b.get_group('09').groupby(['hour'])['price'].mean(),label='September')
-    plt.plot(b.get_group('10').groupby(['hour'])['price'].mean(),label='October')
-    plt.plot(b.get_group('11').groupby(['hour'])['price'].mean(),label='November')
-    plt.plot(b.get_group('12').groupby(['hour'])['price'].mean(),label='December')
+    sns.set()
+    fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+    axs.plot(b.get_group('01').groupby(['hour'])['price'].mean(),label='Jan')
+    axs.plot(b.get_group('02').groupby(['hour'])['price'].mean(),label='Feb')
+    axs.plot(b.get_group('03').groupby(['hour'])['price'].mean(),label='March')
+    axs.plot(b.get_group('04').groupby(['hour'])['price'].mean(),label='April')
+    axs.plot(b.get_group('05').groupby(['hour'])['price'].mean(),label='May')
+    axs.plot(b.get_group('06').groupby(['hour'])['price'].mean(),label='June')
+    axs.plot(b.get_group('07').groupby(['hour'])['price'].mean(),label='July')
+    axs.plot(b.get_group('08').groupby(['hour'])['price'].mean(),label='August')
+    axs.plot(b.get_group('09').groupby(['hour'])['price'].mean(),label='September')
+    axs.plot(b.get_group('10').groupby(['hour'])['price'].mean(),label='October')
+    axs.plot(b.get_group('11').groupby(['hour'])['price'].mean(),label='November')
+    axs.plot(b.get_group('12').groupby(['hour'])['price'].mean(),label='December')
+    axs.set_xlabel('Hours')
+    axs.set_ylabel('Price')
+    axs.set_title('Average price per hour per different months')
     plt.legend()
     plt.show()
 
 
 def plot_hour_day(a):
-    plt.plot(a.get_group(0).groupby(['hour'])['price'].mean(),label='Monday')
-    plt.plot(a.get_group(1).groupby(['hour'])['price'].mean(),label='Tuesday')
-    plt.plot(a.get_group(2).groupby(['hour'])['price'].mean(),label='Wednesday')
-    plt.plot(a.get_group(3).groupby(['hour'])['price'].mean(),label='Thursday')
-    plt.plot(a.get_group(4).groupby(['hour'])['price'].mean(),label='Friday')
-    plt.plot(a.get_group(5).groupby(['hour'])['price'].mean(),label='Saturday')
-    plt.plot(a.get_group(6).groupby(['hour'])['price'].mean(),label='Sunday')
+    sns.set()
+    fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+    axs.plot(a.get_group(0).groupby(['hour'])['price'].mean(),label='Monday')
+    axs.plot(a.get_group(1).groupby(['hour'])['price'].mean(),label='Tuesday')
+    axs.plot(a.get_group(2).groupby(['hour'])['price'].mean(),label='Wednesday')
+    axs.plot(a.get_group(3).groupby(['hour'])['price'].mean(),label='Thursday')
+    axs.plot(a.get_group(4).groupby(['hour'])['price'].mean(),label='Friday')
+    axs.plot(a.get_group(5).groupby(['hour'])['price'].mean(),label='Saturday')
+    axs.plot(a.get_group(6).groupby(['hour'])['price'].mean(),label='Sunday')
+    axs.set_xlabel('Hours')
+    axs.set_ylabel('Price')
+    axs.set_title('Average price per hour per different Days of the week')
     plt.legend()
     plt.show()
 
 
 def plot_year(a):
-    plt.plot(a.get_group('2007').groupby(['hour'])['price'].mean(),label='2007')
-    plt.plot(a.get_group('2008').groupby(['hour'])['price'].mean(),label='2008')
-    plt.plot(a.get_group('2009').groupby(['hour'])['price'].mean(),label='2009')
+    sns.set()
+    fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+    axs.plot(a.get_group('2007').groupby(['hour'])['price'].mean(),label='2007')
+    axs.plot(a.get_group('2008').groupby(['hour'])['price'].mean(),label='2008')
+    axs.plot(a.get_group('2009').groupby(['hour'])['price'].mean(),label='2009')
+    axs.set_xlabel('Hours')
+    axs.set_ylabel('Price')
+    axs.set_title('Average price per hour per different Years')   
     plt.legend()
     plt.show()
 
