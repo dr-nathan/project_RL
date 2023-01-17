@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from utils import *
+from src.utils import *
 import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import datetime
@@ -138,6 +138,7 @@ def get_low_medium_high_price(df,low_perc=0.2,medium_perc=0.7):
     #divide prices in low medium high according to given percentage
     #df = df['price']
     df = list(df)
+    
     low,medium,high = df[0:int((low_perc*len(df)))], df[int((low_perc*len(df))):int(((medium_perc+low_perc)*len(df)))], df[int((medium_perc+low_perc)*len(df)):]
     low_min_max, medium_min_max, high_min_max= (low[0],low[-1]), (medium[0],medium[-1]), (high[0],high[-1])
 

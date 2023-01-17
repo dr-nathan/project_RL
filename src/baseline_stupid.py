@@ -27,17 +27,17 @@ class Baseline:
 
         self.df_new = create_df(df)
 
-        dict = convert_dataframe(df)
-        self.prices_train = [*dict.values()]
+        dict_val = convert_dataframe(df)
+        self.prices_val = [*dict_val.values()]
+        self.date =  [*dict_val.keys()]
         self.prices = np.sort(
-            self.prices_train
+            self.prices_val
         )  # sort prices overall - maybe could do that per month or year?? I sort them such that then I can take the percentages
 
         dict_val = convert_dataframe(
             val
         )  # convert the validation data as well to try the heuristic
-        self.prices_val = [*dict_val.values()]
-        self.date =  [*dict_val.keys()]
+
 
     def get_low_medium_high_price(self):
         # divide prices in low medium high according to given percentage
@@ -51,6 +51,7 @@ class Baseline:
             ],
             self.prices[int((self.medium_perc + self.low_perc) * len(self.prices)) :],
         )
+
         self.low_min_max, self.medium_min_max, self.high_min_max = (
             (low[0], low[-1]),
             (medium[0], medium[-1]),
@@ -60,57 +61,41 @@ class Baseline:
         return self.low_min_max, self.medium_min_max, self.high_min_max
 
     def choice(self):
-        #energy = self.max_stored_energy/2
-        # energy_story = [energy]
-        # action = []
         energy = self.env.stored_energy
         (
             self.low_min_max,
             self.medium_min_max,
             self.high_min_max,
         ) = self.get_low_medium_high_price()
-
-        # for i in self.prices_train: #go through prices and takes decision
+        #go through prices and takes decision
         for i in self.prices_val:
             # BUY
             if (
                 i >= self.low_min_max[0]
                 and i <= self.low_min_max[1]
                 and energy < self.max_stored_energy
-            ):  # if ith price in low range and there is space to store - buy
-                # reward.append(-i*self.buy_multiplier) #if we buy: -1 * unit price * buy mult
-                # energy = energy + self.max_flow_rate
-                # energy_story.append(energy)
-                # action.append(2)
+            ): 
                 action = 2
 
                 self.env.step(action)
 
             # NOTHING
             if (
-                i > self.medium_min_max[0] and i <= self.medium_min_max[1]
-            ):  # if ith price in medium range dont do anything
-                # reward.append(0)  #we are IGNAVI: nothing happens to the reward
-                # energy = energy #nothing happens to energy
-                # energy_story.append(energy)
-                # action.append(0)
+                i > self.medium_min_max[0] and i < self.medium_min_max[1]
+            ):  
                 action = 0
                 self.env.step(action)
 
             # SELL
             if (
-                i > self.high_min_max[0] and i <= self.high_min_max[1] and energy > 0
-            ):  ##if ith price in high range and there is energy to sell - sell
-                # reward.append(i*self.sell_multiplier) #if we sell: 1* unit price * sell mult
-                # energy = energy - self.max_flow_rate
-                # energy_story.append(energy)
-                # action.append(1)
+                i >= self.high_min_max[0] and i <= self.high_min_max[1] and energy > 0
+            ): 
                 action = 1
                 self.env.step(action)
 
         print(
-            "total reward??", np.sum(self.env.episode_data.reward)
-        )  # this is total reward on validation set
+            "total reward", np.sum(self.env.episode_data.reward)
+        ) 
         return self.env.episode_data
 
     def choice2(self):
@@ -118,13 +103,13 @@ class Baseline:
         for i in self.date:
             i = i.strftime('%H')
             
-            if i in ['00' ,'02' ,'03','04','05', '22','23']  and energy < self.max_stored_energy:
+            if i in ['00' ,'01','02' ,'03','04','05', '22','23']  and energy < self.max_stored_energy :
                 action = 2
                 self.env.step(action)
             if i in ['06' ,'07' , '08','09','10','11','12','13','14','15','16','17','18'] and energy > 0:
                 action = 1
                 self.env.step(action)
-            if i in ['19' , '20' , '21','01']:
+            if i in ['19' , '20' , '21']:
                 action = 0    
                 self.env.step(action)    
         print(
@@ -141,11 +126,11 @@ class Baseline:
         energy = self.env.stored_energy
         for i,j in zip(self.date,self.prices):
   
-            if  (i.strftime('%H') in ['00' ,'02' ,'03','04','05', '22','23'] or i.weekday() in ['6'] or j >= self.low_min_max[0] and j <= self.low_min_max[1]) and energy < self.max_stored_energy:
+            if  (i.strftime('%H') in ['00' ,'02' ,'03','04','05', '22','23'] and energy < self.max_stored_energy or i.weekday() in ['6'] and energy < self.max_stored_energy ) :
                 action=2
                 self.env.step(action)
             
-            if (i.strftime('%H') in [ '06' ,'07' ,'08','09','10','11','12','13','14','15','16','17','18'] and (j > self.high_min_max[0] and j <= self.high_min_max[1])) and energy > 0:
+            if (i.strftime('%H') in [ '06' ,'07' ,'08','09','10','11','12','13','14','15','16','17','18'] ) and energy > 0:
                 action=1   
                 self.env.step(action) 
             else:

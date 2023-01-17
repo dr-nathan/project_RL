@@ -8,5 +8,5 @@ df = pd.read_excel("./data/train.xlsx")
 val = pd.read_excel("./data/validate.xlsx")
 dict = src.utils.convert_dataframe(df)
 env = DiscreteDamEnv(dict)
-a = Baseline(env = env, df=df, low_perc=0.05, medium_perc=0.9, val=df)  #
+a = Baseline(env = env, df=df, low_perc=0.25, medium_perc=0.5, val=val)  #
 a.plot_baseline()
