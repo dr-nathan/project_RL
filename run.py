@@ -13,7 +13,7 @@ if __name__ == "__main__":
     train_data, train_data_real = convert_dataframe(train_data)
 
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
-    val_data = convert_dataframe(val_data)
+    val_data, val_data_real = convert_dataframe(val_data)
 
     # create environment and agent
     environment = DiscreteDamEnv(train_data, train_data_real)
@@ -36,6 +36,9 @@ if __name__ == "__main__":
     agent.env.episode_data.plot("Final training episode")
 
     # validate agent
-    agent.validate(price_data=val_data)
+    # re-make env with validation data
+    environment = DiscreteDamEnv(val_data, val_data_real)
+    agent = Agent(environment)
+    agent.validate()
     agent.env.episode_data.plot("Validation episode")
 

@@ -121,7 +121,7 @@ class DiscreteDamEnv(gym.Env):
         else:
             assert self.price_data and len(self.price_data) > 0, "No price data provided"
 
-        # reservor starting level
+        # reservoir starting level
         if start_amount == "random":
             start_amount = random.uniform(0, 1)
 

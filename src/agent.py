@@ -100,13 +100,11 @@ class Agent:
 
     def validate(
         self,
-        price_data: dict[datetime, float],
         random_startpoint: bool = False,
         start_amount: float = 0.5,
     ):
         # reset environment
         state = self.env.reset(
-            price_data=price_data,
             random_startpoint=random_startpoint,
             start_amount=start_amount,
         )

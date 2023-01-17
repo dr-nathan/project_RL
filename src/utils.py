@@ -26,6 +26,7 @@ def convert_dataframe(df: pd.DataFrame) -> dict[datetime, float]:
     upper_99 = df["value"].quantile(0.99)
     #replace values above upper 99% quantile with upper 99% quantile
     df.loc[df["value"] > upper_99, "value"] = upper_99
+    # TODO: val data should use train data quantile
 
     return df["value"].to_dict(), df_real["value"].to_dict()
 
