@@ -10,13 +10,16 @@ if __name__ == "__main__":
 
     # load data
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
-    train_data, train_data_real = convert_dataframe(train_data)
+    train_data = convert_dataframe(train_data)
 
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
     val_data, val_data_real = convert_dataframe(val_data)
 
+    # determine quantile to cap the price for the bins at
+    # price_quantile = pd.Series(train_data.values()).quantile(0.99)
+
     # create environment and agent
-    environment = DiscreteDamEnv(train_data, train_data_real)
+    environment = DiscreteDamEnv(train_data, 200)
     agent = Agent(environment)
 
     # train agent
@@ -30,8 +33,6 @@ if __name__ == "__main__":
         "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint
     )
 
-
-    agent.env.episode_data.plot()
     agent.env.plot_price_distribution()
     agent.env.episode_data.plot("Final training episode")
 
@@ -41,4 +42,3 @@ if __name__ == "__main__":
     agent = Agent(environment)
     agent.validate()
     agent.env.episode_data.plot("Validation episode")
-
