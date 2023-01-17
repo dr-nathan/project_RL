@@ -2,6 +2,7 @@ from datetime import datetime
 import pandas as pd
 import numpy as np
 
+
 # convert dateframe
 def convert_dataframe(df: pd.DataFrame) -> dict[datetime, float]:
     df = (
