@@ -56,6 +56,8 @@ class Baseline:
         return self.low_min_max, self.medium_min_max, self.high_min_max
 
     def choice(self):
+        self.env.reset()
+
         # go through prices and takes decision
         terminated = False
         while not terminated:
@@ -81,29 +83,40 @@ class Baseline:
         return self.env.episode_data
 
     def choice2(self):
+        self.env.reset()
+
         terminated = False
         while not terminated:
             curr_date = self.env.current_date
 
             current_hour = curr_date.hour
 
-            if current_hour in [0, 1, 2, 3, 4, 5, 22, 23]:
+            # buy
+            if 2 <= current_hour <= 6:
                 action = 2
                 _, _, terminated, *_ = self.env.step(action)
-            elif 6 <= current_hour <= 18:
+            # sell
+            elif 9 <= current_hour <= 19:
                 action = 1
                 _, _, terminated, *_ = self.env.step(action)
-            elif current_hour in [19, 20, 21]:
+            # do nothing
+            else:
                 action = 0
                 _, _, terminated, *_ = self.env.step(action)
-        
+
         print(
             "total reward??", np.sum(self.env.episode_data.reward)
         )  # this is total reward on validation set
-        
+
         return self.env.episode_data
 
-    def plot_baseline(self):
+    def run(self, strategy: str, plot: bool = True, **kwargs):
+        if strategy == "threshold":
+            data = self.choice()
+        elif strategy == "hourly":
+            data = self.choice2()
+        else:
+            raise ValueError(f"Strategy {strategy} not implemented")
 
-        data = self.choice()  # storage is in terms of energy here
-        data.plot()
+        if plot:
+            data.plot(**kwargs)
