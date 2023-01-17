@@ -28,4 +28,4 @@ while run:
     # print(res[0], round(res[1], 2), env.stored_energy, env.current_price)
 
 # %%
-env.episode_data.plot()
+env.episode_data.debug_plot()

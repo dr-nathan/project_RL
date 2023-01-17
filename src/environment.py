@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
+import numpy as np
 import seaborn as sns
 from gymnasium import spaces
 
@@ -21,6 +22,7 @@ class DamEpisodeData:
     flow: list[float] = field(default_factory=list)
     price: list[float] = field(default_factory=list)
     reward: list[float] = field(default_factory=list)
+    total_reward = property(lambda self: sum(self.reward))
 
     def add(
         self,
@@ -38,7 +40,7 @@ class DamEpisodeData:
         self.price.append(price)
         self.reward.append(reward)
 
-    def plot(self, title: str | None = None):
+    def debug_plot(self, title: str | None = None):
         sns.set()
         fig, axs = plt.subplots(6, 1, figsize=(10, 10), sharex=True)
 
@@ -106,7 +108,7 @@ class DiscreteDamEnv(gym.Env):
         # n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
 
         self.observation_space = spaces.MultiDiscrete(
-            [24, 12, self.n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24, self.n_bins_price + 1, self.n_bins_reservoir + 1]
         )
 
         self.reset()
@@ -149,7 +151,7 @@ class DiscreteDamEnv(gym.Env):
 
         return self._get_state()
 
-    def pick_random_startpoint(self):
+    def _pick_random_startpoint(self):
         """Pick a random state to start from"""
 
         # start points to choose from
@@ -239,7 +241,6 @@ class DiscreteDamEnv(gym.Env):
     def _get_state(self):
         return (
             self.current_date.hour,
-            self.current_date.month - 1,
             self._get_price_bin(),
             self._get_reservoir_bin(),
         )
@@ -266,6 +267,19 @@ class DiscreteDamEnv(gym.Env):
         return flow * self.buy_multiplier * self.current_price
 
     def plot_price_distribution(self):
-        prices = list(self.price_data.values())
-        plt.hist(prices, bins=100)
+        sns.set()
+        # get capped prices
+        capped_prices = [min(p, self.max_price) for p in self.price_data.values()]
+        # make dist plot
+        sns.displot(capped_prices, kde=True)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.ylabel("Count")
+        # mark quantiles
+        for q in [0.4, 0.6]:
+            plt.axvline(np.quantile(capped_prices, q), color="red")
+        plt.tight_layout()
         plt.show()
+
+
+

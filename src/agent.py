@@ -2,13 +2,15 @@ import random
 from datetime import datetime
 
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
 
 # create agent
 class Agent:
-    def __init__(self, env: gym.Env, discount_factor: float = 0.99):
+    # TODO: look into making discount factor dynamic
+    def __init__(self, env: gym.Env, discount_factor: float = 0.98):
         self.env = env
         self.discount_factor = discount_factor
 
@@ -59,7 +61,7 @@ class Agent:
 
         # intitialize stuff
         self.epsilon_decay = epsilon_decay
-        self.episode_data = []
+        self.tot_reward = []
 
         if self.epsilon_decay:
             epsilon_start = 1
@@ -90,13 +92,11 @@ class Agent:
                 self.update_Q_table(state, action, reward, next_state)
                 state = next_state
 
-            # store average reward
-            # self.episode_data.append(self.env.episode_data)
+            # store episode data
+            self.tot_reward.append(self.env.episode_data.total_reward)
 
             # if (episode + 1) % 100 == 0:
             #    self.env.episode_data.plot()
-
-        return self.episode_data
 
     def validate(
         self,
@@ -118,4 +118,48 @@ class Agent:
             next_state, _, terminated, *_ = self.env.step(action)
             state = next_state
 
-        return self.env.episode_data
+    def plot_rewards_over_episode(self):
+        plt.plot(self.tot_reward)
+        plt.title("Total reward over episode")
+        plt.xlabel("Episode")
+        plt.ylabel("Total reward")
+        plt.show()
+
+    def visualize_Q_table(self):
+        # plot V value ~ price + hour
+        # obs space is hour, price, res_level, action
+        # x = price (20 bins)
+        x = np.arange(self.env.observation_space.nvec[1])
+        # y = time (24 bins)
+        y = np.arange(self.env.observation_space.nvec[0])
+        x, y = np.meshgrid(x, y)
+        # z = V value
+        # average out unnecessary dimensions
+        z = np.mean(self.Qtable, axis=2)
+        # max over actions ( = V value)
+        z = np.max(z, axis=2)
+        # plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Time")
+        ax.set_zlabel("V value")
+        plt.set_cmap("viridis")
+        plt.show()
+
+        # plot V value ~ price + res_level
+        x = np.arange(self.env.observation_space.nvec[1])
+        y = np.arange(self.env.observation_space.nvec[2])
+        x, y = np.meshgrid(x, y)
+        z = np.mean(self.Qtable, axis=0)
+        z = np.max(z, axis=2).T
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Reservoir level")
+        ax.set_zlabel("V value")
+        plt.set_cmap("viridis")
+        plt.show()
+
