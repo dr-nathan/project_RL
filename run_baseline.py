@@ -1,12 +1,16 @@
 import pandas as pd
 
 from src.baseline_stupid import Baseline
-from src.environment import DiscreteDamEnv, DamEpisodeData
+from src.environment import DiscreteDamEnv
 import src.utils
 
-df = pd.read_excel("./data/train.xlsx")
+train = pd.read_excel("./data/train.xlsx")
+train_dict = src.utils.convert_dataframe(train)
+
 val = pd.read_excel("./data/validate.xlsx")
-dict = src.utils.convert_dataframe(df)
-env = DiscreteDamEnv(dict)
-a = Baseline(env = env, df=df, low_perc=0.25, medium_perc=0.5, val=val)  #
+val_dict = src.utils.convert_dataframe(val)
+val_env = DiscreteDamEnv(val_dict)
+
+a = Baseline(env=val_env, df=train)
+a.fit(train_dict, low_perc=0.25, medium_perc=0.5)
 a.plot_baseline()
