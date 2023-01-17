@@ -59,13 +59,12 @@ class DamEpisodeData:
     def plot_fancy(self):
         sns.set()
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
-        axs.scatter(self.price,self.action, s=1, marker="x")
-        axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
+        axs.scatter(range(len(self.price)),self.price,s=1, c=self.action, cmap='PuOr')
+        #axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
         axs.set_title("Action")
 
         fig.tight_layout()
         plt.show()
-        pass
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""

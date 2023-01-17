@@ -17,4 +17,5 @@ if __name__ == "__main__":
     episode_data = agent.train("epsilon_greedy", 30, epsilon=0.2, alpha=0.1)
 
     print(agent.Qtable)
-    agent.env.episode_data.plot()
+    #agent.env.episode_data.plot()
+    agent.env.episode_data.plot_fancy()

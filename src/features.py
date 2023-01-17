@@ -92,6 +92,14 @@ def plot_hour_day(a):
     plt.show()
 
 
+def plot_year(a):
+    plt.plot(a.get_group('2007').groupby(['hour'])['price'].mean(),label='2007')
+    plt.plot(a.get_group('2008').groupby(['hour'])['price'].mean(),label='2008')
+    plt.plot(a.get_group('2009').groupby(['hour'])['price'].mean(),label='2009')
+    plt.legend()
+    plt.show()
+
+
 def season(df):
     
     if df['month'] in ['01' ,'02' ,'03']:
@@ -102,6 +110,18 @@ def season(df):
         return 3
     elif df['month'] in [ '10' , '11' , '12']:
         return 4    
+
+def nigh_day(df):
+    
+    if df['hour'] in ['00' ,'02' ,'03','04','05', '22','23']:
+        return 0
+    elif df['hour'] in ['06' ,'07' , '08','09','10','11','12','13','14','15','16','17','18']:
+        return 1
+    elif df['hour'] in ['19' , '20' , '21']:
+        return 2
+
+
+       
 
 
 def plot_hour_season(a):
@@ -131,25 +151,44 @@ def get_low_medium_high_price(df,low_perc=0.2,medium_perc=0.7):
             return 2
 
         
-    #return low_min_max, medium_min_max, high_min_max    
+    #return low_min_max, medium_min_max, high_min_max   
+    #  
 
-
-def main():
-    df = pd.read_excel("./data/train.xlsx")
+def create_df(df):
     dict = convert_dataframe(df)
-    prices_train_list = [*dict.values()]
-    prices_train =  pd.DataFrame(prices_train_list)
-
     df_new = pd.DataFrame()
     df_new['time'] = [*dict.keys()]
     df_new['price'] = [*dict.values()]
     df_new['week_day'] = [i.weekday() for i in df_new['time']]
     df_new['month'] = df_new['time'].dt.strftime('%m')
     df_new['hour'] = df_new['time'].dt.strftime('%H')
-    
     df_new['season'] =  df_new.apply(season, axis=1)
     df_new['price_range'] = get_low_medium_high_price(df_new['price'])
-    print(df_new)
+    df_new['night_day'] = df_new.apply(nigh_day,axis=1)
+    df_new['year'] = df_new['time'].dt.strftime('%Y')
+
+    return df_new
+
+
+
+def main():
+    df = pd.read_excel("./data/train.xlsx")
+    df_new = create_df(df)
+  
+    #dict = convert_dataframe(df)
+    #prices_train_list = [*dict.values()]
+    #prices_train =  pd.DataFrame(prices_train_list)
+
+    #df_new = pd.DataFrame()
+    #df_new['time'] = [*dict.keys()]
+    #df_new['price'] = [*dict.values()]
+    #df_new['week_day'] = [i.weekday() for i in df_new['time']]
+    #df_new['month'] = df_new['time'].dt.strftime('%m')
+    #df_new['hour'] = df_new['time'].dt.strftime('%H')
+    
+    #df_new['season'] =  df_new.apply(season, axis=1)
+    #df_new['price_range'] = get_low_medium_high_price(df_new['price'])
+    #print(df_new)
     
     #a = pd.DataFrame()
     #a['time'] =df_new['time']
@@ -180,14 +219,23 @@ def main():
     x = np.linspace(0, 24, 24)  
     #plot(x,m,s,'hour')
 
+ 
+
     a = df_new.groupby(['week_day'])
     plot_hour_day(a)
+    print(a.get_group(0).groupby(['hour'])['price'].mean())
 
     b = df_new.groupby(['month'])
     plot_hour_month(b)
 
     c = df_new.groupby(['season'])
     plot_hour_season(c)
+
+    d = df_new.groupby(['year'])
+    plot_year(d)
+
+    plt.plot(df_new['price'])
+    plt.show()
 
 
 
