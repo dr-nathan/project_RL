@@ -13,7 +13,7 @@ if __name__ == "__main__":
     train_data = convert_dataframe(train_data)
 
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
-    val_data, val_data_real = convert_dataframe(val_data)
+    val_data = convert_dataframe(val_data)
 
     # determine quantile to cap the price for the bins at
     # price_quantile = pd.Series(train_data.values()).quantile(0.99)
@@ -37,8 +37,5 @@ if __name__ == "__main__":
     agent.env.episode_data.plot("Final training episode")
 
     # validate agent
-    # re-make env with validation data
-    environment = DiscreteDamEnv(val_data, val_data_real)
-    agent = Agent(environment)
-    agent.validate()
+    agent.validate(price_data=val_data)
     agent.env.episode_data.plot("Validation episode")
