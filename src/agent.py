@@ -4,11 +4,16 @@ from datetime import datetime
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-import torch
-import torch.nn as nn
 from tqdm import tqdm
 
-from src.utils import DEVICE
+# So you don't have to install torch if you're not using the PG agent
+try:
+    import torch
+    from torch import nn
+
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+except ImportError:
+    torch = None
 
 
 # create agent
@@ -121,7 +126,7 @@ class QLearnAgent:
             action = self.make_decision(state, "greedy")
             next_state, _, terminated, *_ = self.env.step(action)
             state = next_state
-            
+
         return self.env.episode_data
 
     def plot_rewards_over_episode(self):
@@ -178,6 +183,9 @@ class QLearnAgent:
 
 class PolicyNetwork(nn.Module):
     def __init__(self, state_size, action_size):
+        if torch is None:
+            raise ImportError("PyTorch is not installed.")
+
         super(PolicyNetwork, self).__init__()
         self.fc1 = nn.Linear(state_size, 24)
         self.fc2 = nn.Linear(24, action_size)
@@ -192,11 +200,16 @@ class PolicyNetwork(nn.Module):
 
 class PolicyGradientAgent:
     def __init__(self, learning_rate: float, env: gym.Env):
+        if torch is None:
+            raise ImportError("PyTorch is not installed.")
+
         self.env = env
         self.state_size = len(env.observation_space.nvec)
         self.action_size = env.action_space.n
 
-        self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(DEVICE)
+        self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(
+            DEVICE
+        )
         self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate
         )
