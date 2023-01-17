@@ -9,7 +9,7 @@ import numpy as np
 import seaborn as sns
 from gymnasium import spaces
 
-from src.utils import cumsum, joule_to_mwh
+from src.utils import cumsum, joule_to_mwh, add_range_prices
 
 
 @dataclass
@@ -68,6 +68,16 @@ class DamEpisodeData:
         fig.tight_layout()
         plt.show()
 
+
+    def plot_fancy(self):
+        sns.set()
+        fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+        axs.scatter(range(len(self.price)),self.price,s=1, c=self.action, cmap='PuOr')
+        #axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
+        axs.set_title("Action")
+
+        fig.tight_layout()
+        plt.show()
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
@@ -257,6 +267,14 @@ class DiscreteDamEnv(gym.Env):
         return int(
             self.stored_energy // (self.max_stored_energy / self.n_bins_reservoir)
         )
+
+    def get_class_price_bin(self):
+        i = self.current_price
+        if i >= self.low_min_max[0] and i <= self.low_min_max[1]: return 0
+        if i > self.medium_min_max[0] and i <= self.medium_min_max[1] : return 1
+        if i > self.high_min_max[0] and i <= self.high_min_max[1]: return 2
+
+
 
     def _get_reward(self, flow: float):
         # positive flow = selling
