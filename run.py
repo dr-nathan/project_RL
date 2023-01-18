@@ -40,7 +40,8 @@ if __name__ == "__main__":
         epsilon_decay,
         alpha,
         random_startpoint,
-        start_amount
+        start_amount,
+        val_price_data=val_data
     )
 
     if DEBUG:

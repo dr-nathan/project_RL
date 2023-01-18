@@ -45,9 +45,9 @@ def add_range_prices(dict: dict, low, medium):
     df = np.sort(df)
 
     low, medium, high = (
-        df[0: int((low * len(df)))],
-        df[int((low * len(df))): int(((medium + low) * len(df)))],
-        df[int((medium + low) * len(df)):],
+        df[0 : int((low * len(df)))],
+        df[int((low * len(df))) : int(((medium + low) * len(df)))],
+        df[int((medium + low) * len(df)) :],
     )
     low_min_max, medium_min_max, high_min_max = (
         (low[0], low[-1]),
@@ -56,3 +56,15 @@ def add_range_prices(dict: dict, low, medium):
     )
 
     return low_min_max, medium_min_max, high_min_max
+
+
+def plt_col(lst):
+    cols = []
+    for l in lst:
+        if l == 0:
+            cols.append("green")
+        elif l == 1:
+            cols.append("blue")
+        else:
+            cols.append("red")
+    return cols

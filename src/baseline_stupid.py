@@ -55,68 +55,51 @@ class Baseline:
 
         return self.low_min_max, self.medium_min_max, self.high_min_max
 
-    def choice(self):
-        self.env.reset()
+    def _select_action_threshold(self):
+        current_price = self.env.current_price
 
-        # go through prices and takes decision
-        terminated = False
-        while not terminated:
-            current_price = self.env.current_price
-            # BUY
-            if current_price <= self.low_min_max[1]:
-                action = 2
+        # buy
+        if current_price <= self.low_min_max[1]:
+            return 2
 
-                _, _, terminated, *_ = self.env.step(action)
+        # sell
+        if self.high_min_max[0] <= current_price:
+            return 1
 
-            # NOTHING
-            elif self.medium_min_max[0] < current_price < self.medium_min_max[1]:
-                action = 0
-                _, _, terminated, *_ = self.env.step(action)
+        # else, do nothing
+        return 0
 
-            # SELL
-            elif self.high_min_max[0] <= current_price:
-                action = 1
-                _, _, terminated, *_ = self.env.step(action)
+    def _select_action_hourly(self):
+        current_hour = self.env.current_date.hour
 
-        print("total reward", np.sum(self.env.episode_data.reward))
+        # buy
+        if 2 <= current_hour <= 6:
+            return 2
 
-        return self.env.episode_data
+        # sell
+        if 9 <= current_hour <= 19:
+            return 1
 
-    def choice2(self):
-        self.env.reset()
+        # else, do nothing
+        return 0
 
-        terminated = False
-        while not terminated:
-            curr_date = self.env.current_date
-
-            current_hour = curr_date.hour
-
-            # buy
-            if 2 <= current_hour <= 6:
-                action = 2
-                _, _, terminated, *_ = self.env.step(action)
-            # sell
-            elif 9 <= current_hour <= 19:
-                action = 1
-                _, _, terminated, *_ = self.env.step(action)
-            # do nothing
-            else:
-                action = 0
-                _, _, terminated, *_ = self.env.step(action)
-
-        print(
-            "total reward??", np.sum(self.env.episode_data.reward)
-        )  # this is total reward on validation set
-
-        return self.env.episode_data
-
-    def run(self, strategy: str, plot: bool = True, **kwargs):
+    def run(self, strategy: str, plot: bool = True):
         if strategy == "threshold":
-            data = self.choice()
+            action_selection = self._select_action_threshold
+
         elif strategy == "hourly":
-            data = self.choice2()
+            action_selection = self._select_action_hourly
+
         else:
             raise ValueError(f"Strategy {strategy} not implemented")
 
+        self.env.reset()
+        terminated = False
+
+        while not terminated:
+            action = action_selection()
+            _, _, terminated, *_ = self.env.step(action)
+
         if plot:
-            data.plot(**kwargs)
+            self.env.episode_data.debug_plot()
+            self.env.episode_data.plot_fancy()
