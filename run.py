@@ -23,28 +23,40 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = DiscreteDamEnv(train_data, 200)
-    agent = QLearnAgent(environment)
+    agent = QLearnAgent(environment, 0.98)
 
     # train agent
     epsilon_decay = False
-    epsilon = 1  # overriden if epsilon_decay is True
+    epsilon = 0.7  # overriden if epsilon_decay is True
     alpha = 0.1
-    n_episodes = 700
+    n_episodes = 600
     random_startpoint = False
+    start_amount = 0.5
 
     agent.train(
-        "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint
+        "epsilon_greedy",
+        n_episodes,
+        epsilon,
+        epsilon_decay,
+        alpha,
+        random_startpoint,
+        start_amount
     )
 
     if DEBUG:
         agent.plot_rewards_over_episode()
-        agent.env.plot_price_distribution()
+        # agent.env.plot_price_distribution() # only actually relevant for baseline insight
         agent.env.episode_data.debug_plot("Final training episode")
 
     # validate agent
     agent.validate(price_data=val_data)
-    agent.env.episode_data.debug_plot("Validation episode")
+    if DEBUG:
+        agent.env.episode_data.debug_plot("Validation episode")
+
+    # print total reward
+    print(f"Total reward: {agent.env.episode_data.total_reward}")
 
     # plot Q table
     agent.visualize_Q_table()
+    agent.env.episode_data.plot_fancy()
 

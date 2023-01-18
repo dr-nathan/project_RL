@@ -73,9 +73,9 @@ class DamEpisodeData:
         sns.set()
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
         axs.scatter(range(len(self.price)),self.price,s=1, c=self.action, cmap='PuOr')
-        #axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
+        # axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
         axs.set_title("Action")
-
+        plt.ylim(0, 200)
         fig.tight_layout()
         plt.show()
 

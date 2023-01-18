@@ -13,7 +13,7 @@ try:
 
     DEVICE = torch.device("cuda" if torch.cuda.is_available()
                           else "mps" if torch.backends.mps.is_available()
-                            else "cpu")
+                          else "cpu")
 except ImportError:
     torch = None
 
@@ -71,19 +71,18 @@ class QLearnAgent:
     ):
 
         # intitialize stuff
+        self.alpha = alpha
         self.epsilon_decay = epsilon_decay
         self.tot_reward = []
 
         if self.epsilon_decay:
             epsilon_start = 1
-            epsilon_end = 0.01
+            epsilon_end = 0.1
             epsilon_decay_step = np.exp(
                 np.log(epsilon_end / epsilon_start) / n_episodes
             )
         else:
             self.epsilon = epsilon
-
-        self.alpha = alpha
 
         for episode in tqdm(range(n_episodes)):
 
@@ -139,41 +138,72 @@ class QLearnAgent:
         plt.show()
 
     def visualize_Q_table(self):
-        # plot V value ~ price + hour
-        # obs space is hour, price, res_level, action
-        # x = price (20 bins)
+        # # plot V value ~ price + hour
+        # # obs space is hour, price, res_level, action
+        # # x = price (20 bins)
+        # x = np.arange(self.env.observation_space.nvec[1])
+        # # y = time (24 bins)
+        # y = np.arange(self.env.observation_space.nvec[0])
+        # x, y = np.meshgrid(x, y)
+        # # z = V value
+        # # average out unnecessary dimensions
+        # z = np.mean(self.Qtable, axis=2)
+        # # max over actions ( = V value)
+        # z = np.max(z, axis=2)
+        # # plot
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection="3d")
+        # ax.plot_surface(x, y, z)
+        # ax.set_xlabel("Price")
+        # ax.set_ylabel("Time")
+        # ax.set_zlabel("V value")
+        # plt.set_cmap("viridis")
+        # plt.show()
+        #
+        # # plot V value ~ price + res_level
+        # x = np.arange(self.env.observation_space.nvec[1])
+        # y = np.arange(self.env.observation_space.nvec[2])
+        # x, y = np.meshgrid(x, y)
+        # z = np.mean(self.Qtable, axis=0)
+        # z = np.max(z, axis=2).T
+        # fig = plt.figure()
+        # ax = fig.add_subplot(111, projection="3d")
+        # ax.plot_surface(x, y, z)
+        # ax.set_xlabel("Price")
+        # ax.set_ylabel("Reservoir level")
+        # ax.set_zlabel("V value")
+        # plt.set_cmap("viridis")
+        # plt.show()
+
+        # 2d plots
+        # plot V value ~ price
         x = np.arange(self.env.observation_space.nvec[1])
-        # y = time (24 bins)
-        y = np.arange(self.env.observation_space.nvec[0])
-        x, y = np.meshgrid(x, y)
-        # z = V value
-        # average out unnecessary dimensions
-        z = np.mean(self.Qtable, axis=2)
-        # max over actions ( = V value)
-        z = np.max(z, axis=2)
-        # plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Time")
-        ax.set_zlabel("V value")
-        plt.set_cmap("viridis")
+        y = np.mean(self.Qtable, axis=(0, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ price")
+        plt.xlabel("Price")
+        plt.ylabel("V value")
         plt.show()
 
-        # plot V value ~ price + res_level
-        x = np.arange(self.env.observation_space.nvec[1])
-        y = np.arange(self.env.observation_space.nvec[2])
-        x, y = np.meshgrid(x, y)
-        z = np.mean(self.Qtable, axis=0)
-        z = np.max(z, axis=2).T
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Reservoir level")
-        ax.set_zlabel("V value")
-        plt.set_cmap("viridis")
+        # plot V value ~ res_level
+        x = np.arange(self.env.observation_space.nvec[2])
+        y = np.mean(self.Qtable, axis=(0, 1))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ reservoir level")
+        plt.xlabel("Reservoir level")
+        plt.ylabel("V value")
+        plt.show()
+
+        # plot V value ~ time
+        x = np.arange(self.env.observation_space.nvec[0])
+        y = np.mean(self.Qtable, axis=(1, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ time")
+        plt.xlabel("Time")
+        plt.ylabel("V value")
         plt.show()
 
     def save(self, path: str):
