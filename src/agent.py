@@ -1,3 +1,4 @@
+from copy import deepcopy
 import random
 from datetime import datetime
 
@@ -68,11 +69,13 @@ class QLearnAgent:
         alpha: float = 0.1,
         random_startpoint: bool = False,
         start_amount: float = 0.5,
+        val_price_data:dict[datetime, float] | None = None,
     ):
 
         # intitialize stuff
         self.epsilon_decay = epsilon_decay
-        self.tot_reward = []
+        self.train_reward = []
+        self.val_reward = []
 
         if self.epsilon_decay:
             epsilon_start = 1
@@ -85,8 +88,12 @@ class QLearnAgent:
 
         self.alpha = alpha
 
-        for episode in tqdm(range(n_episodes)):
+        val_env = None
+        if val_price_data is not None:
+            val_env = deepcopy(self.env)
+            val_env.reset(price_data=val_price_data)
 
+        for episode in tqdm(range(n_episodes)):
             # reset environment
             state = self.env.reset(
                 random_startpoint=random_startpoint, start_amount=start_amount
@@ -104,10 +111,19 @@ class QLearnAgent:
                 state = next_state
 
             # store episode data
-            self.tot_reward.append(self.env.episode_data.total_reward)
+            self.train_reward.append(self.env.episode_data.total_reward)
 
             # if (episode + 1) % 100 == 0:
             #    self.env.episode_data.plot()
+
+            if val_env is not None:
+                val_env.reset()
+                terminated = False
+                while not terminated:
+                    action = self.make_decision(state, "greedy")
+                    state, reward, terminated, *_ = val_env.step(action)
+
+                self.val_reward.append(val_env.episode_data.total_reward)
 
     def validate(
         self,
@@ -132,7 +148,9 @@ class QLearnAgent:
         return self.env.episode_data
 
     def plot_rewards_over_episode(self):
-        plt.plot(self.tot_reward)
+        plt.plot(self.train_reward, label="Train")
+        plt.plot(self.val_reward, label="Validation")
+        plt.legend()
         plt.title("Total reward over episode")
         plt.xlabel("Episode")
         plt.ylabel("Total reward")
@@ -196,7 +214,7 @@ class PolicyNetwork(nn.Module):
     def forward(self, x):
         x = torch.relu(self.fc1(x))
         x = self.fc2(x)
-        x = self.softmax(x)
+        # x = self.softmax(x)
         return x
 
 
@@ -224,7 +242,7 @@ class PolicyGradientAgent:
         return action.item()
 
     def update_policy(self, rewards, log_probs):
-        returns = log_probs * rewards
+        returns = log_probs * rewards.sum()
         policy_loss = -returns.mean()
         policy_loss.requires_grad = True
         self.optimizer.zero_grad()

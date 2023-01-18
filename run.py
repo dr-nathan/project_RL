@@ -33,7 +33,7 @@ if __name__ == "__main__":
     random_startpoint = False
 
     agent.train(
-        "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint
+        "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint, val_price_data=val_data
     )
 
     if DEBUG:

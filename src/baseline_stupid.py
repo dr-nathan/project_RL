@@ -119,4 +119,4 @@ class Baseline:
             raise ValueError(f"Strategy {strategy} not implemented")
 
         if plot:
-            data.plot(**kwargs)
+            data.debug_plot(**kwargs)

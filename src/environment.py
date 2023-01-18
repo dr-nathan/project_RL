@@ -157,7 +157,7 @@ class DiscreteDamEnv(gym.Env):
         self._set_state_iter(self.price_data)
 
         if random_startpoint:
-            return self.pick_random_startpoint()
+            return self._pick_random_startpoint()
 
         return self._get_state()
 
