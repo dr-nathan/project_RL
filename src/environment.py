@@ -8,8 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from gymnasium import spaces
-
-from src.utils import cumsum, joule_to_mwh, add_range_prices
+import numpy as np
+import pandas as pd
+from src.utils import cumsum, joule_to_mwh, add_range_prices, plt_col
 
 
 @dataclass
@@ -69,15 +70,30 @@ class DamEpisodeData:
         plt.show()
 
 
+
     def plot_fancy(self):
         sns.set()
+        price = self.price[-1000:]
+        action = self.action[-1000:]
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
-        axs.scatter(range(len(self.price)),self.price,s=1, c=self.action, cmap='PuOr')
-        #axs.scatter(range(len(self.action)), self.action, s=1, marker="x")
-        axs.set_title("Action")
+        cols=plt_col(action)  
 
-        fig.tight_layout()
+        df = pd.DataFrame({'price':price, 'action':action}).reset_index()
+        df.action = df.action.map({0:'nothing', 1:'sell',2:'buy'})
+
+        sns.scatterplot(data=df, x='index', y='price', hue='action', palette={'nothing':'blue','sell':'green','buy':'red'})
+        
+        plt.title('Action on the prices over time')        
+
+        # axs.scatter(range(len(price)),price,s=100, c=cols,marker= 'o', label=cols)
+        # axs.legend()
+        # axs.set_title("Action on the prices")
+        # fig.tight_layout()
         plt.show()
+
+
+    # Create the colors list using the function above
+          
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
