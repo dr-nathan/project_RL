@@ -24,9 +24,9 @@ if __name__ == "__main__":
 
     # train agent
     epsilon_decay = False
-    epsilon = 0.7  # overriden if epsilon_decay is True
+    epsilon = 0.6  # overriden if epsilon_decay is True
     alpha = 0.1
-    n_episodes = 600
+    n_episodes = 300
     random_startpoint = False
     start_amount = 0.5
 
@@ -42,15 +42,15 @@ if __name__ == "__main__":
     )
 
     if DEBUG:
-        agent.plot_rewards_over_episode()
-        agent.env.plot_price_bins()
-        # agent.env.plot_price_distribution() # only actually relevant for baseline insight
         agent.env.episode_data.debug_plot("Final training episode")
+        agent.plot_rewards_over_episode()
+        # agent.env.plot_price_distribution() # only actually relevant for baseline insight
 
     # validate agent
     agent.validate(price_data=val_data)
     if DEBUG:
         agent.env.episode_data.debug_plot("Validation episode")
+        agent.plot_price_bins(train_data, val_data)
 
     # print total reward
     print(f"Total reward: {agent.env.episode_data.total_reward}")
@@ -58,4 +58,3 @@ if __name__ == "__main__":
     # plot Q table
     agent.visualize_Q_table()
     agent.env.episode_data.plot_fancy()
-

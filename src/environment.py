@@ -73,7 +73,7 @@ class DamEpisodeData:
         price = self.price[-1000:]
         action = self.action[-1000:]
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
-        cols=plt_col(action)
+        cols = plt_col(action)
 
         df = pd.DataFrame({'price':price, 'action':action}).reset_index()
         df.action = df.action.map({0:'nothing', 1:'sell',2:'buy'})
@@ -113,16 +113,16 @@ class DiscreteDamEnv(gym.Env):
 
         self.max_price = max(self.price_data.values())
         # have price bins split into equal quantiles
-        self.quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))
+        self.quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))[1:-1]
 
         # 0 = do nothing
         # 1 = empty / sell
         # 2 = fill / buy
         self.action_space = spaces.Discrete(3)
 
-        # state is (hour, electricity price (bins), stored energy)
+        # state is (hour, electricity price (bins), stored energy (bins))
         self.observation_space = spaces.MultiDiscrete(
-            [24, self.n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24, self.n_bins_price, self.n_bins_reservoir]
         )
 
         self.reset()
@@ -260,8 +260,8 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _get_price_bin(self):
-        # get 10 bins with equal number of data points
-        return np.digitize(self.current_price, self.quantiles) - 1
+        # get bins with equal number of data points
+        return np.searchsorted(self.quantiles, self.current_price)  # much quicker than np.digitize
 
     def _get_reservoir_bin(self):
         return int(
@@ -281,32 +281,3 @@ class DiscreteDamEnv(gym.Env):
 
         # negative flow = buying
         return flow * self.buy_multiplier * self.current_price
-
-    def plot_price_distribution(self):
-        sns.set()
-        # get capped prices
-        capped_prices = [min(p, self.max_price) for p in self.price_data.values()]
-        # make dist plot
-        sns.displot(capped_prices, kde=True)
-        plt.title("Price distribution")
-        plt.xlabel("Price")
-        plt.ylabel("Count")
-        # mark quantiles
-        for q in [0.4, 0.6]:
-            plt.axvline(np.quantile(capped_prices, q), color="red")
-        plt.tight_layout()
-        plt.show()
-
-    def plot_price_bins(self):
-        quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))
-        sns.set()
-        sns.displot(list(self.price_data.values()), kde=True)
-        plt.title("Price distribution")
-        plt.xlabel("Price")
-        plt.ylabel("Count")
-        for q in quantiles:
-            plt.axvline(q, color="red")
-        plt.xlim(0, self.max_price)
-        plt.tight_layout()
-        plt.show()
-

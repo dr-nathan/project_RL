@@ -5,7 +5,9 @@ from datetime import datetime
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
+import seaborn as sns
 
 # So you don't have to install torch if you're not using the PG agent
 try:
@@ -146,6 +148,12 @@ class QLearnAgent:
 
         return self.env.episode_data
 
+    def save(self, path: str):
+        np.save(path, self.Qtable)
+
+    def load(self, path: str):
+        self.Qtable = np.load(path)
+
     def plot_rewards_over_episode(self):
         plt.plot(self.train_reward, label="Train")
         plt.plot(self.val_reward, label="Validation")
@@ -155,7 +163,45 @@ class QLearnAgent:
         plt.ylabel("Total reward")
         plt.show()
 
+    def plot_price_bins(self, train_price_data, val_price_data):
+        sns.set()
+        # cap prices
+        train_price_data = [min(170, p) for p in train_price_data.values()]
+        val_price_data = [min(170, p) for p in val_price_data.values()]
+        # make long df (sucks, but necessary for seaborn).
+        df = pd.DataFrame(
+            {
+                "Price": train_price_data + val_price_data,
+                "Set": ["Train"] * len(train_price_data)
+                + ["Validation"] * len(val_price_data),
+            }
+        )
+        # plot
+        sns.displot(df, x="Price", hue="Set", kind="kde", fill=True)
+        for q in self.env.quantiles:
+            plt.axvline(q, color="red", lw=0.7)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.tight_layout()
+        plt.show()
+
+    def plot_price_distribution(self):
+        sns.set()
+        # make dist plot
+        sns.displot(self.env.price_data.values(), kde=True)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.ylabel("Count")
+        # mark quantiles
+        for q in [0.4, 0.6]:
+            plt.axvline(np.quantile(self.env.price_data.values(), q), color="red")
+        plt.xlim(0, 170)
+        plt.tight_layout()
+        plt.show()
+
     def visualize_Q_table(self):
+
+        ## 3D plots ##
         # plot V value ~ price + hour
         # obs space is hour, price, res_level, action
         # x = price (20 bins)
@@ -166,7 +212,6 @@ class QLearnAgent:
         # z = V value
         # average out unnecessary dimensions
         z = np.mean(self.Qtable, axis=2)
-        # max over actions ( = V value)
         z = np.max(z, axis=2)
         # plot
         fig = plt.figure()
@@ -177,7 +222,6 @@ class QLearnAgent:
         ax.set_zlabel("V value")
         plt.set_cmap("viridis")
         plt.show()
-
         # plot V value ~ price + res_level
         x = np.arange(self.env.observation_space.nvec[1])
         y = np.arange(self.env.observation_space.nvec[2])
@@ -193,7 +237,7 @@ class QLearnAgent:
         plt.set_cmap("viridis")
         plt.show()
 
-        # 2d plots
+        ## 2D plots ##
         # plot V value ~ price
         x = np.arange(self.env.observation_space.nvec[1])
         y = np.mean(self.Qtable, axis=(0, 2))
@@ -223,12 +267,6 @@ class QLearnAgent:
         plt.xlabel("Time")
         plt.ylabel("V value")
         plt.show()
-
-    def save(self, path: str):
-        np.save(path, self.Qtable)
-
-    def load(self, path: str):
-        self.Qtable = np.load(path)
 
 
 class PolicyNetwork(nn.Module):
