@@ -22,7 +22,7 @@ except ImportError:
 # create agent
 class QLearnAgent:
     # TODO: look into making discount factor dynamic
-    def __init__(self, env: gym.Env, discount_factor: float = 0.98):
+    def __init__(self, env: gym.Env, discount_factor: float = 0.99):
         self.env = env
         self.discount_factor = discount_factor
 
@@ -156,42 +156,42 @@ class QLearnAgent:
         plt.show()
 
     def visualize_Q_table(self):
-        # # plot V value ~ price + hour
-        # # obs space is hour, price, res_level, action
-        # # x = price (20 bins)
-        # x = np.arange(self.env.observation_space.nvec[1])
-        # # y = time (24 bins)
-        # y = np.arange(self.env.observation_space.nvec[0])
-        # x, y = np.meshgrid(x, y)
-        # # z = V value
-        # # average out unnecessary dimensions
-        # z = np.mean(self.Qtable, axis=2)
-        # # max over actions ( = V value)
-        # z = np.max(z, axis=2)
-        # # plot
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection="3d")
-        # ax.plot_surface(x, y, z)
-        # ax.set_xlabel("Price")
-        # ax.set_ylabel("Time")
-        # ax.set_zlabel("V value")
-        # plt.set_cmap("viridis")
-        # plt.show()
-        #
-        # # plot V value ~ price + res_level
-        # x = np.arange(self.env.observation_space.nvec[1])
-        # y = np.arange(self.env.observation_space.nvec[2])
-        # x, y = np.meshgrid(x, y)
-        # z = np.mean(self.Qtable, axis=0)
-        # z = np.max(z, axis=2).T
-        # fig = plt.figure()
-        # ax = fig.add_subplot(111, projection="3d")
-        # ax.plot_surface(x, y, z)
-        # ax.set_xlabel("Price")
-        # ax.set_ylabel("Reservoir level")
-        # ax.set_zlabel("V value")
-        # plt.set_cmap("viridis")
-        # plt.show()
+        # plot V value ~ price + hour
+        # obs space is hour, price, res_level, action
+        # x = price (20 bins)
+        x = np.arange(self.env.observation_space.nvec[1])
+        # y = time (24 bins)
+        y = np.arange(self.env.observation_space.nvec[0])
+        x, y = np.meshgrid(x, y)
+        # z = V value
+        # average out unnecessary dimensions
+        z = np.mean(self.Qtable, axis=2)
+        # max over actions ( = V value)
+        z = np.max(z, axis=2)
+        # plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Time")
+        ax.set_zlabel("V value")
+        plt.set_cmap("viridis")
+        plt.show()
+
+        # plot V value ~ price + res_level
+        x = np.arange(self.env.observation_space.nvec[1])
+        y = np.arange(self.env.observation_space.nvec[2])
+        x, y = np.meshgrid(x, y)
+        z = np.mean(self.Qtable, axis=0)
+        z = np.max(z, axis=2).T
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Reservoir level")
+        ax.set_zlabel("V value")
+        plt.set_cmap("viridis")
+        plt.show()
 
         # 2d plots
         # plot V value ~ price

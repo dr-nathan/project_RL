@@ -18,11 +18,8 @@ if __name__ == "__main__":
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
     val_data = convert_dataframe(val_data)
 
-    # determine quantile to cap the price for the bins at
-    # price_quantile = pd.Series(train_data.values()).quantile(0.99)
-
     # create environment and agent
-    environment = DiscreteDamEnv(train_data, 200)
+    environment = DiscreteDamEnv(train_data)
     agent = QLearnAgent(environment, 0.98)
 
     # train agent
@@ -46,6 +43,7 @@ if __name__ == "__main__":
 
     if DEBUG:
         agent.plot_rewards_over_episode()
+        agent.env.plot_price_bins()
         # agent.env.plot_price_distribution() # only actually relevant for baseline insight
         agent.env.episode_data.debug_plot("Final training episode")
 

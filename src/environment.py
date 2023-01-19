@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
-import numpy as np
 import seaborn as sns
 from gymnasium import spaces
 import numpy as np
@@ -69,7 +68,6 @@ class DamEpisodeData:
         fig.tight_layout()
         plt.show()
 
-
     def plot_fancy(self):
         sns.set()
         price = self.price[-1000:]
@@ -91,9 +89,6 @@ class DamEpisodeData:
         plt.show()
 
 
-    # Create the colors list using the function above
-
-
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
 
@@ -111,18 +106,14 @@ class DiscreteDamEnv(gym.Env):
     n_bins_price = 20
     n_bins_reservoir = 10
 
-    def __init__(
-        self, price_data: dict[datetime, float], price_data_cap: None | float = None
-    ):
+    def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
 
         self.price_data = dict(sorted(price_data.items()))
 
-        # cap the price data to a certain value, only applies for the returned state
-        if price_data_cap is None:
-            price_data_cap = max(self.price_data.values())
-
-        self.max_price = price_data_cap
+        self.max_price = max(self.price_data.values())
+        # have price bins split into equal quantiles
+        self.quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))
 
         # 0 = do nothing
         # 1 = empty / sell
@@ -130,8 +121,6 @@ class DiscreteDamEnv(gym.Env):
         self.action_space = spaces.Discrete(3)
 
         # state is (hour, electricity price (bins), stored energy)
-        # n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
-
         self.observation_space = spaces.MultiDiscrete(
             [24, self.n_bins_price + 1, self.n_bins_reservoir + 1]
         )
@@ -271,12 +260,8 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _get_price_bin(self):
-        price = self.current_price
-
-        if price > self.max_price:
-            price = self.max_price
-
-        return int(price // (self.max_price / self.n_bins_price))
+        # get 10 bins with equal number of data points
+        return np.digitize(self.current_price, self.quantiles) - 1
 
     def _get_reservoir_bin(self):
         return int(
@@ -312,5 +297,16 @@ class DiscreteDamEnv(gym.Env):
         plt.tight_layout()
         plt.show()
 
-
+    def plot_price_bins(self):
+        quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))
+        sns.set()
+        sns.displot(list(self.price_data.values()), kde=True)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.ylabel("Count")
+        for q in quantiles:
+            plt.axvline(q, color="red")
+        plt.xlim(0, self.max_price)
+        plt.tight_layout()
+        plt.show()
 
