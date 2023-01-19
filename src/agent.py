@@ -4,6 +4,7 @@ from datetime import datetime
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -29,9 +30,9 @@ class QLearnAgent:
         self.discount_factor = discount_factor
 
         # create Q table
-        self.Qtable = np.zeros(
+        self.Qtable = np.ones(
             np.append(self.env.observation_space.nvec, self.env.action_space.n)
-        )
+        ) * 1000
 
     def update_Q_table(self, state, action, reward, next_state):
         q_next = self.Qtable[next_state].max()
@@ -212,25 +213,43 @@ class QLearnAgent:
         # z = V value
         # average out unnecessary dimensions
         z = np.mean(self.Qtable, axis=2)
+        # get argamx over action dimension
+        z_action = np.argmax(z, axis=2)
+        # get V value
         z = np.max(z, axis=2)
         # plot
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
+        colors = {0: "white", 1: "green", 2: "red"}
+        z_action = np.vectorize(colors.get)(z_action)
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        # set labels for colors
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
         ax.set_xlabel("Price")
         ax.set_ylabel("Time")
         ax.set_zlabel("V value")
-        plt.set_cmap("viridis")
         plt.show()
+
         # plot V value ~ price + res_level
         x = np.arange(self.env.observation_space.nvec[1])
         y = np.arange(self.env.observation_space.nvec[2])
         x, y = np.meshgrid(x, y)
         z = np.mean(self.Qtable, axis=0)
+        z_action = np.argmax(z, axis=2).T
+        z_action = np.vectorize(colors.get)(z_action)
         z = np.max(z, axis=2).T
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
         ax.set_xlabel("Price")
         ax.set_ylabel("Reservoir level")
         ax.set_zlabel("V value")
