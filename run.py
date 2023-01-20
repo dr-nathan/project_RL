@@ -26,7 +26,7 @@ if __name__ == "__main__":
     epsilon_decay = False
     epsilon = 0.8  # overriden if epsilon_decay is True
     alpha = 0.1
-    n_episodes = 500
+    n_episodes = 5000
     random_startpoint = False
     start_amount = 0.5
 

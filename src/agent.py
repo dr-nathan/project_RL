@@ -220,7 +220,7 @@ class QLearnAgent:
         # plot
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        colors = {0: "white", 1: "green", 2: "red"}
+        colors = {0: "orange", 1: "green", 2: "red"}
         z_action = np.vectorize(colors.get)(z_action)
         ax.plot_surface(x, y, z, facecolors=z_action)
         # set labels for colors
