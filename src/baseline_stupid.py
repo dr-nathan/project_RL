@@ -83,7 +83,12 @@ class Baseline:
         # else, do nothing
         return 0
 
-    def run(self, strategy: str, plot: bool = True):
+    def run(
+        self,
+        strategy: str,
+        plot: bool = True,
+        plot_title: str | None = None,
+    ):
         if strategy == "threshold":
             action_selection = self._select_action_threshold
 
@@ -101,5 +106,5 @@ class Baseline:
             _, _, terminated, *_ = self.env.step(action)
 
         if plot:
-            self.env.episode_data.debug_plot()
+            self.env.episode_data.debug_plot(plot_title)
             self.env.episode_data.plot_fancy()

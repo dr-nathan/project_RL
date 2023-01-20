@@ -13,6 +13,6 @@ val_env = DiscreteDamEnv(val_dict)
 
 a = Baseline(env=val_env, df=train)
 a.fit(train_dict, low_perc=0.4, medium_perc=0.2)
-a.run(title="Validation Threshold Baseline", strategy="threshold", plot=True)
+a.run(plot_title="Validation Threshold Baseline", strategy="threshold", plot=True)
 
-a.run(title="Validation Hourly Baseline", strategy="hourly", plot=True)
+a.run(plot_title="Validation Hourly Baseline", strategy="hourly", plot=True)

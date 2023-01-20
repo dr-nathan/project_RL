@@ -22,6 +22,7 @@ class DamEpisodeData:
     flow: list[float] = field(default_factory=list)
     price: list[float] = field(default_factory=list)
     reward: list[float] = field(default_factory=list)
+    reward_cumulative = property(lambda self: cumsum(self.reward))
     total_reward = property(lambda self: sum(self.reward))
 
     def add(
@@ -62,7 +63,7 @@ class DamEpisodeData:
         axs[4].plot(self.date, self.reward)
         axs[4].set_title("Reward")
 
-        axs[5].plot(self.date, cumsum(self.reward))
+        axs[5].plot(self.date, self.reward_cumulative)
         axs[5].set_title("Cumulative reward")
 
         fig.tight_layout()
