@@ -23,6 +23,7 @@ class DamEpisodeData:
     flow: list[float] = field(default_factory=list)
     price: list[float] = field(default_factory=list)
     reward: list[float] = field(default_factory=list)
+    reward_cumulative = property(lambda self: cumsum(self.reward))
     total_reward = property(lambda self: sum(self.reward))
 
     def add(
@@ -63,7 +64,7 @@ class DamEpisodeData:
         axs[4].plot(self.date, self.reward)
         axs[4].set_title("Reward")
 
-        axs[5].plot(self.date, cumsum(self.reward))
+        axs[5].plot(self.date, self.reward_cumulative)
         axs[5].set_title("Cumulative reward")
 
         fig.tight_layout()
@@ -82,7 +83,7 @@ class DamEpisodeData:
         df.action = df.action.map({0:'nothing', 1:'sell',2:'buy'})
 
         sns.scatterplot(data=df, x='index', y='price', hue='action', palette={'nothing':'blue','sell':'green','buy':'red'})
-        
+
         plt.title('Action on the prices over time')        
 
         # axs.scatter(range(len(price)),price,s=100, c=cols,marker= 'o', label=cols)
@@ -93,7 +94,7 @@ class DamEpisodeData:
 
 
     # Create the colors list using the function above
-          
+
 
 class DiscreteDamEnv(gym.Env):
     """Dam Environment that follows gym interface"""
