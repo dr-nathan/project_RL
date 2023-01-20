@@ -4,8 +4,11 @@ from datetime import datetime
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 import numpy as np
+import pandas as pd
 from tqdm import tqdm
+import seaborn as sns
 
 # So you don't have to install torch if you're not using the PG agent
 try:
@@ -14,7 +17,7 @@ try:
 
     DEVICE = torch.device("cuda" if torch.cuda.is_available()
                           else "mps" if torch.backends.mps.is_available()
-                            else "cpu")
+                          else "cpu")
 except ImportError:
     torch = None
 
@@ -22,14 +25,14 @@ except ImportError:
 # create agent
 class QLearnAgent:
     # TODO: look into making discount factor dynamic
-    def __init__(self, env: gym.Env, discount_factor: float = 0.98):
+    def __init__(self, env: gym.Env, discount_factor: float = 0.99):
         self.env = env
         self.discount_factor = discount_factor
 
         # create Q table
-        self.Qtable = np.zeros(
+        self.Qtable = np.ones(
             np.append(self.env.observation_space.nvec, self.env.action_space.n)
-        )
+        ) * 1000
 
     def update_Q_table(self, state, action, reward, next_state):
         q_next = self.Qtable[next_state].max()
@@ -73,20 +76,19 @@ class QLearnAgent:
     ):
 
         # intitialize stuff
+        self.alpha = alpha
         self.epsilon_decay = epsilon_decay
         self.train_reward = []
         self.val_reward = []
 
         if self.epsilon_decay:
             epsilon_start = 1
-            epsilon_end = 0.01
+            epsilon_end = 0.1
             epsilon_decay_step = np.exp(
                 np.log(epsilon_end / epsilon_start) / n_episodes
             )
         else:
             self.epsilon = epsilon
-
-        self.alpha = alpha
 
         val_env = None
         if val_price_data is not None:
@@ -147,6 +149,12 @@ class QLearnAgent:
 
         return self.env.episode_data
 
+    def save(self, path: str):
+        np.save(path, self.Qtable)
+
+    def load(self, path: str):
+        self.Qtable = np.load(path)
+
     def plot_rewards_over_episode(self):
         plt.plot(self.train_reward, label="Train")
         plt.plot(self.val_reward, label="Validation")
@@ -156,7 +164,45 @@ class QLearnAgent:
         plt.ylabel("Total reward")
         plt.show()
 
+    def plot_price_bins(self, train_price_data, val_price_data):
+        sns.set()
+        # cap prices
+        train_price_data = [min(170, p) for p in train_price_data.values()]
+        val_price_data = [min(170, p) for p in val_price_data.values()]
+        # make long df (sucks, but necessary for seaborn).
+        df = pd.DataFrame(
+            {
+                "Price": train_price_data + val_price_data,
+                "Set": ["Train"] * len(train_price_data)
+                + ["Validation"] * len(val_price_data),
+            }
+        )
+        # plot
+        sns.displot(df, x="Price", hue="Set", kind="kde", fill=True)
+        for q in self.env.quantiles:
+            plt.axvline(q, color="red", lw=0.7)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.tight_layout()
+        plt.show()
+
+    def plot_price_distribution(self):
+        sns.set()
+        # make dist plot
+        sns.displot(self.env.price_data.values(), kde=True)
+        plt.title("Price distribution")
+        plt.xlabel("Price")
+        plt.ylabel("Count")
+        # mark quantiles
+        for q in [0.4, 0.6]:
+            plt.axvline(np.quantile(self.env.price_data.values(), q), color="red")
+        plt.xlim(0, 170)
+        plt.tight_layout()
+        plt.show()
+
     def visualize_Q_table(self):
+
+        ## 3D plots ##
         # plot V value ~ price + hour
         # obs space is hour, price, res_level, action
         # x = price (20 bins)
@@ -167,16 +213,25 @@ class QLearnAgent:
         # z = V value
         # average out unnecessary dimensions
         z = np.mean(self.Qtable, axis=2)
-        # max over actions ( = V value)
+        # get argamx over action dimension
+        z_action = np.argmax(z, axis=2)
+        # get V value
         z = np.max(z, axis=2)
         # plot
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
+        colors = {0: "white", 1: "green", 2: "red"}
+        z_action = np.vectorize(colors.get)(z_action)
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        # set labels for colors
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
         ax.set_xlabel("Price")
         ax.set_ylabel("Time")
         ax.set_zlabel("V value")
-        plt.set_cmap("viridis")
         plt.show()
 
         # plot V value ~ price + res_level
@@ -184,21 +239,53 @@ class QLearnAgent:
         y = np.arange(self.env.observation_space.nvec[2])
         x, y = np.meshgrid(x, y)
         z = np.mean(self.Qtable, axis=0)
+        z_action = np.argmax(z, axis=2).T
+        z_action = np.vectorize(colors.get)(z_action)
         z = np.max(z, axis=2).T
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z)
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
         ax.set_xlabel("Price")
         ax.set_ylabel("Reservoir level")
         ax.set_zlabel("V value")
         plt.set_cmap("viridis")
         plt.show()
 
-    def save(self, path: str):
-        np.save(path, self.Qtable)
+        ## 2D plots ##
+        # plot V value ~ price
+        x = np.arange(self.env.observation_space.nvec[1])
+        y = np.mean(self.Qtable, axis=(0, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ price")
+        plt.xlabel("Price")
+        plt.ylabel("V value")
+        plt.show()
 
-    def load(self, path: str):
-        self.Qtable = np.load(path)
+        # plot V value ~ res_level
+        x = np.arange(self.env.observation_space.nvec[2])
+        y = np.mean(self.Qtable, axis=(0, 1))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ reservoir level")
+        plt.xlabel("Reservoir level")
+        plt.ylabel("V value")
+        plt.show()
+
+        # plot V value ~ time
+        x = np.arange(self.env.observation_space.nvec[0])
+        y = np.mean(self.Qtable, axis=(1, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ time")
+        plt.xlabel("Time")
+        plt.ylabel("V value")
+        plt.show()
 
 
 class PolicyNetwork(nn.Module):

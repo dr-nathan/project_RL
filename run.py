@@ -18,33 +18,43 @@ if __name__ == "__main__":
     val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
     val_data = convert_dataframe(val_data)
 
-    # determine quantile to cap the price for the bins at
-    # price_quantile = pd.Series(train_data.values()).quantile(0.99)
-
     # create environment and agent
-    environment = DiscreteDamEnv(train_data, 200)
-    agent = QLearnAgent(environment)
+    environment = DiscreteDamEnv(train_data)
+    agent = QLearnAgent(environment, 0.98)
 
     # train agent
     epsilon_decay = False
-    epsilon = 1  # overriden if epsilon_decay is True
+    epsilon = 0.8  # overriden if epsilon_decay is True
     alpha = 0.1
-    n_episodes = 700
+    n_episodes = 500
     random_startpoint = False
+    start_amount = 0.5
 
     agent.train(
-        "epsilon_greedy", n_episodes, epsilon, epsilon_decay, alpha, random_startpoint, val_price_data=val_data
+        "epsilon_greedy",
+        n_episodes,
+        epsilon,
+        epsilon_decay,
+        alpha,
+        random_startpoint,
+        start_amount,
+        val_price_data=val_data
     )
 
     if DEBUG:
-        agent.plot_rewards_over_episode()
-        agent.env.plot_price_distribution()
         agent.env.episode_data.debug_plot("Final training episode")
+        agent.plot_rewards_over_episode()
+        # agent.env.plot_price_distribution() # only actually relevant for baseline insight
 
     # validate agent
     agent.validate(price_data=val_data)
-    agent.env.episode_data.debug_plot("Validation episode")
+    if DEBUG:
+        agent.env.episode_data.debug_plot("Validation episode")
+        agent.plot_price_bins(train_data, val_data)
+
+    # print total reward
+    print(f"Total reward: {agent.env.episode_data.total_reward}")
 
     # plot Q table
     agent.visualize_Q_table()
-
+    agent.env.episode_data.plot_fancy()

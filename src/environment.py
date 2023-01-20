@@ -5,7 +5,6 @@ from typing import Any, Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
-import numpy as np
 import seaborn as sns
 from gymnasium import spaces
 import numpy as np
@@ -70,30 +69,25 @@ class DamEpisodeData:
         fig.tight_layout()
         plt.show()
 
-
-
     def plot_fancy(self):
         sns.set()
         price = self.price[-1000:]
         action = self.action[-1000:]
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
-        cols=plt_col(action)  
+        cols = plt_col(action)
 
         df = pd.DataFrame({'price':price, 'action':action}).reset_index()
         df.action = df.action.map({0:'nothing', 1:'sell',2:'buy'})
 
         sns.scatterplot(data=df, x='index', y='price', hue='action', palette={'nothing':'blue','sell':'green','buy':'red'})
-
-        plt.title('Action on the prices over time')        
+        plt.ylim(0, 170)
+        plt.title('Action on the prices over time')
 
         # axs.scatter(range(len(price)),price,s=100, c=cols,marker= 'o', label=cols)
         # axs.legend()
         # axs.set_title("Action on the prices")
         # fig.tight_layout()
         plt.show()
-
-
-    # Create the colors list using the function above
 
 
 class DiscreteDamEnv(gym.Env):
@@ -113,29 +107,23 @@ class DiscreteDamEnv(gym.Env):
     n_bins_price = 20
     n_bins_reservoir = 10
 
-    def __init__(
-        self, price_data: dict[datetime, float], price_data_cap: None | float = None
-    ):
+    def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
 
         self.price_data = dict(sorted(price_data.items()))
 
-        # cap the price data to a certain value, only applies for the returned state
-        if price_data_cap is None:
-            price_data_cap = max(self.price_data.values())
-
-        self.max_price = price_data_cap
+        self.max_price = max(self.price_data.values())
+        # have price bins split into equal quantiles
+        self.quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))[1:-1]
 
         # 0 = do nothing
         # 1 = empty / sell
         # 2 = fill / buy
         self.action_space = spaces.Discrete(3)
 
-        # state is (hour, electricity price (bins), stored energy)
-        # n_bins_price = int(max(self.price_data.values()) // self.price_bin_size)
-
+        # state is (hour, electricity price (bins), stored energy (bins))
         self.observation_space = spaces.MultiDiscrete(
-            [24, self.n_bins_price + 1, self.n_bins_reservoir + 1]
+            [24, self.n_bins_price, self.n_bins_reservoir]
         )
 
         self.reset()
@@ -273,12 +261,8 @@ class DiscreteDamEnv(gym.Env):
         )
 
     def _get_price_bin(self):
-        price = self.current_price
-
-        if price > self.max_price:
-            price = self.max_price
-
-        return int(price // (self.max_price / self.n_bins_price))
+        # get bins with equal number of data points
+        return np.searchsorted(self.quantiles, self.current_price)  # much quicker than np.digitize
 
     def _get_reservoir_bin(self):
         return int(
@@ -298,21 +282,3 @@ class DiscreteDamEnv(gym.Env):
 
         # negative flow = buying
         return flow * self.buy_multiplier * self.current_price
-
-    def plot_price_distribution(self):
-        sns.set()
-        # get capped prices
-        capped_prices = [min(p, self.max_price) for p in self.price_data.values()]
-        # make dist plot
-        sns.displot(capped_prices, kde=True)
-        plt.title("Price distribution")
-        plt.xlabel("Price")
-        plt.ylabel("Count")
-        # mark quantiles
-        for q in [0.4, 0.6]:
-            plt.axvline(np.quantile(capped_prices, q), color="red")
-        plt.tight_layout()
-        plt.show()
-
-
-
