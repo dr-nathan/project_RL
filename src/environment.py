@@ -119,8 +119,6 @@ class DamEnvBase(gym.Env):
 
         # self.action_space and self.observation_space must be set in subclasses
 
-        self.reset()
-
     def reset(
         self,
         *,
@@ -305,13 +303,13 @@ class DiscreteDamEnv(DamEnvBase):
 
 class ContinuousDamEnv(DamEnvBase):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
         # action is the flow rate
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy)
         self.observation_space = spaces.Box(low=0, high=1, shape=(3,))
+
+        super().__init__(*args, **kwargs)
 
     def _action_to_flow(self, action: float):
         return action * self.max_flow_rate

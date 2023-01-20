@@ -1,9 +1,8 @@
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.agent import QLearnAgent
+from src.agent_discrete import QLearnAgent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
 
@@ -38,7 +37,7 @@ if __name__ == "__main__":
         alpha,
         random_startpoint,
         start_amount,
-        val_price_data=val_data
+        val_price_data=val_data,
     )
 
     if DEBUG:

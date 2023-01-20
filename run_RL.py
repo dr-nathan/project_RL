@@ -1,10 +1,10 @@
 import pandas as pd
 from pathlib import Path
-from src.agent import Agent
+from src.agent_continuous import Agent
 from src.environment import DiscreteDamEnv
 from src.utils import convert_dataframe
 import torch
-from src.Agent_RL import DDQNAgent, training_loop
+from src.agent_continuous import DDQNAgent, training_loop
 
 
 if __name__ == "__main__": 
