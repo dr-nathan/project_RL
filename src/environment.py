@@ -76,12 +76,18 @@ class DamEpisodeData:
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
         cols = plt_col(action)
 
-        df = pd.DataFrame({'price':price, 'action':action}).reset_index()
-        df.action = df.action.map({0:'nothing', 1:'sell',2:'buy'})
+        df = pd.DataFrame({"price": price, "action": action}).reset_index()
+        df.action = df.action.map({0: "nothing", 1: "sell", 2: "buy"})
 
-        sns.scatterplot(data=df, x='index', y='price', hue='action', palette={'nothing':'blue','sell':'green','buy':'red'})
+        sns.scatterplot(
+            data=df,
+            x="index",
+            y="price",
+            hue="action",
+            palette={"nothing": "blue", "sell": "green", "buy": "red"},
+        )
         plt.ylim(0, 170)
-        plt.title('Action on the prices over time')
+        plt.title("Action on the prices over time")
 
         # axs.scatter(range(len(price)),price,s=100, c=cols,marker= 'o', label=cols)
         # axs.legend()
@@ -90,7 +96,7 @@ class DamEpisodeData:
         plt.show()
 
 
-class DiscreteDamEnv(gym.Env):
+class DamEnvBase(gym.Env):
     """Dam Environment that follows gym interface"""
 
     # static properties
@@ -104,35 +110,19 @@ class DiscreteDamEnv(gym.Env):
     buy_multiplier = 1.25  # i.e. we spend 1.25 Kw to store 1 Kw (80% efficiency)
     sell_multiplier = 0.9  # i.e. we get 0.9 Kw for selling 1 Kw (90% efficiency)
 
-    n_bins_price = 20
-    n_bins_reservoir = 10
-
     def __init__(self, price_data: dict[datetime, float]):
         super().__init__()
 
         self.price_data = dict(sorted(price_data.items()))
 
         self.max_price = max(self.price_data.values())
-        # have price bins split into equal quantiles
-        self.quantiles = np.quantile(list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1))[1:-1]
 
-        # 0 = do nothing
-        # 1 = empty / sell
-        # 2 = fill / buy
-        self.action_space = spaces.Discrete(3)
-
-        # state is (hour, electricity price (bins), stored energy (bins))
-        self.observation_space = spaces.MultiDiscrete(
-            [24, self.n_bins_price, self.n_bins_reservoir]
-        )
-
-        self.reset()
+        # self.action_space and self.observation_space must be set in subclasses
 
     def reset(
         self,
         *,
         seed: int | None = None,
-        options: dict[str, Any] | None = None,
         start_amount: float | Literal["random"] = 0.5,
         random_startpoint: bool = False,
         price_data: dict[datetime, float] | None = None,
@@ -189,17 +179,7 @@ class DiscreteDamEnv(gym.Env):
         return self._get_state()
 
     def step(self, action: int):
-        # empty reservor / sell
-        if action == 1:
-            flow_rate = self.max_flow_rate
-
-        # fill reservor / buy
-        elif action == 2:
-            flow_rate = -self.max_flow_rate
-
-        # do nothing, i.e. action == 0 (default)
-        else:
-            flow_rate = 0.0
+        flow_rate = self._action_to_flow(action)
 
         # update the applied flow so we don't overflow or store less than 0
         applied_flow_rate = self._apply_constrained_flow_rate(flow_rate)
@@ -253,6 +233,55 @@ class DiscreteDamEnv(gym.Env):
         except StopIteration:
             self.terminated = True
 
+    def _get_reward(self, flow: float):
+        # positive flow = selling
+        if flow > 0:
+            return flow * self.sell_multiplier * self.current_price
+
+        # negative flow = buying
+        return flow * self.buy_multiplier * self.current_price
+
+    def _action_to_flow(self, action: int | float):
+        raise NotImplementedError("Must be implemented in subclass")
+
+    def _get_state(self):
+        raise NotImplementedError("Must be implemented in subclass")
+
+
+class DiscreteDamEnv(DamEnvBase):
+    n_bins_price = 20
+    n_bins_reservoir = 10
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # have price bins split into equal quantiles
+        self.quantiles = np.quantile(
+            list(self.price_data.values()), np.linspace(0, 1, self.n_bins_price + 1)
+        )[1:-1]
+
+        # 0 = do nothing
+        # 1 = empty / sell
+        # 2 = fill / buy
+        self.action_space = spaces.Discrete(3)
+
+        # state is (hour, electricity price (bins), stored energy (bins))
+        self.observation_space = spaces.MultiDiscrete(
+            [24, self.n_bins_price, self.n_bins_reservoir]
+        )
+
+    def _action_to_flow(self, action: int):
+        # empty reservor / sell
+        if action == 1:
+            return self.max_flow_rate
+
+        # fill reservor / buy
+        if action == 2:
+            return -self.max_flow_rate
+
+        # do nothing, i.e. action == 0 (default)
+        return 0.0
+
     def _get_state(self):
         return (
             self.current_date.hour,
@@ -262,23 +291,32 @@ class DiscreteDamEnv(gym.Env):
 
     def _get_price_bin(self):
         # get bins with equal number of data points
-        return np.searchsorted(self.quantiles, self.current_price)  # much quicker than np.digitize
+        return np.searchsorted(
+            self.quantiles, self.current_price
+        )  # much quicker than np.digitize
 
     def _get_reservoir_bin(self):
         return int(
             self.stored_energy // (self.max_stored_energy / self.n_bins_reservoir)
         )
 
-    def get_class_price_bin(self):
-        i = self.current_price
-        if i >= self.low_min_max[0] and i <= self.low_min_max[1]: return 0
-        if i > self.medium_min_max[0] and i <= self.medium_min_max[1] : return 1
-        if i > self.high_min_max[0] and i <= self.high_min_max[1]: return 2
 
-    def _get_reward(self, flow: float):
-        # positive flow = selling
-        if flow > 0:
-            return flow * self.sell_multiplier * self.current_price
+class ContinuousDamEnv(DamEnvBase):
+    def __init__(self, *args, **kwargs):
+        # action is the flow rate
+        self.action_space = spaces.Box(low=-1, high=1)
 
-        # negative flow = buying
-        return flow * self.buy_multiplier * self.current_price
+        # state is (hour, electricity price, stored energy)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(3,))
+
+        super().__init__(*args, **kwargs)
+
+    def _action_to_flow(self, action: float):
+        return action * self.max_flow_rate
+
+    def _get_state(self):
+        return (
+            self.current_date.hour / 24,
+            self.current_price / self.max_price,
+            self.stored_energy / self.max_stored_energy,
+        )

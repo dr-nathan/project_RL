@@ -1,38 +1,27 @@
-from copy import deepcopy
 import random
+from copy import deepcopy
 from datetime import datetime
 
-import gymnasium as gym
-import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import seaborn as sns
+from tqdm import tqdm
 
-# So you don't have to install torch if you're not using the PG agent
-try:
-    import torch
-    from torch import nn
-
-    DEVICE = torch.device("cuda" if torch.cuda.is_available()
-                          else "mps" if torch.backends.mps.is_available()
-                          else "cpu")
-except ImportError:
-    torch = None
+from src.environment import DiscreteDamEnv
 
 
-# create agent
 class QLearnAgent:
-    # TODO: look into making discount factor dynamic
-    def __init__(self, env: gym.Env, discount_factor: float = 0.99):
+    def __init__(self, env: DiscreteDamEnv, discount_factor: float = 0.99):
         self.env = env
         self.discount_factor = discount_factor
 
         # create Q table
-        self.Qtable = np.ones(
-            np.append(self.env.observation_space.nvec, self.env.action_space.n)
-        ) * 1000
+        self.Qtable = (
+            np.ones(np.append(self.env.observation_space.nvec, self.env.action_space.n))
+            * 1000
+        )
 
     def update_Q_table(self, state, action, reward, next_state):
         q_next = self.Qtable[next_state].max()
@@ -72,7 +61,7 @@ class QLearnAgent:
         alpha: float = 0.1,
         random_startpoint: bool = False,
         start_amount: float = 0.5,
-        val_price_data:dict[datetime, float] | None = None,
+        val_price_data: dict[datetime, float] | None = None,
     ):
 
         # intitialize stuff
@@ -286,90 +275,3 @@ class QLearnAgent:
         plt.xlabel("Time")
         plt.ylabel("V value")
         plt.show()
-
-
-class PolicyNetwork(nn.Module):
-    def __init__(self, state_size, action_size):
-        if torch is None:
-            raise ImportError("PyTorch is not installed.")
-
-        super(PolicyNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_size, 24)
-        self.fc2 = nn.Linear(24, action_size)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        # x = self.softmax(x)
-        return x
-
-
-class PolicyGradientAgent:
-    def __init__(self, learning_rate: float, env: gym.Env):
-        if torch is None:
-            raise ImportError("PyTorch is not installed.")
-
-        self.env = env
-        self.state_size = len(env.observation_space.nvec)
-        self.action_size = env.action_space.n
-
-        self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(
-            DEVICE
-        )
-        self.optimizer = torch.optim.Adam(
-            self.policy_network.parameters(), lr=learning_rate
-        )
-
-    def get_action(self, state):
-        state = torch.tensor(state).to(DEVICE).float().unsqueeze(0)
-        probs = self.policy_network(state)
-        action = torch.multinomial(probs, 1)
-
-        return action.item()
-
-    def update_policy(self, rewards, log_probs):
-        returns = log_probs * rewards.sum()
-        policy_loss = -returns.mean()
-        policy_loss.requires_grad = True
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
-
-    def train(self, n_episodes):
-        for _ in tqdm(range(n_episodes)):
-            state = self.env.reset()
-            log_probs = []
-            rewards = []
-            terminated = False
-            i = 0
-
-            while not terminated:
-                i += 1
-
-                action = self.get_action(state)
-                next_state, reward, terminated, *_ = self.env.step(action)
-                log_probs.append(
-                    torch.log(
-                        self.policy_network(
-                            torch.tensor(state).to(DEVICE).float().unsqueeze(0)
-                        )[0, action]
-                    )
-                )
-                rewards.append(reward)
-                state = next_state
-
-            self.update_policy(torch.tensor(rewards), torch.tensor(log_probs))
-
-        return self.env.episode_data
-
-    def validate(self, price_data: dict[datetime, float]):
-        state = self.env.reset(price_data=price_data)
-        terminated = False
-
-        while not terminated:
-            action = self.get_action(state)
-            next_state, _, terminated, *_ = self.env.step(action)
-            state = next_state
-
-        return self.env.episode_data
