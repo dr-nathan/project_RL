@@ -7,21 +7,24 @@ from datetime import datetime
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-import torch.optim as optim
-from torch import nn
+from torch import nn, optim
 from tqdm import tqdm
 
 from src.environment import ContinuousDamEnv
 
-DEVICE = torch.device(
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
-)
+# DEVICE = torch.device(
+#     "cuda"
+#     if torch.cuda.is_available()
+#     else "mps"
+#     if torch.backends.mps.is_available()
+#     else "cpu"
+# )
+
+# it's generally actually not beneficial to use a GPU for this, as steps are not taken in parallel
+# so single-core performance is more important. during backpropagation a GPU can be faster, but the
+# overhead of copying data to and from the GPU is not worth it
+DEVICE = torch.device("cpu")
 
 
 class DQN(nn.Module):
