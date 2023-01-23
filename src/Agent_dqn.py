@@ -34,7 +34,7 @@ class DQN(nn.Module):
         '''
         
         super(DQN,self).__init__()
-        input_features = len(env.observation_space)
+        input_features,*_ = env.observation_space.shape
         action_space = env.action_space.n
         
 

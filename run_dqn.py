@@ -1,7 +1,7 @@
 import pandas as pd
 from pathlib import Path
 #from src.agent import QLearnAgent
-from src.environment import ContinuousDamEnv, DiscreteDamEnv
+from src.environment import ContinuousDamEnv, DiscreteContinuousDamEnv, DiscreteDamEnv
 from src.utils import convert_dataframe
 import torch
 from src.Agent_dqn import DDQNAgent
@@ -40,7 +40,7 @@ if __name__ == "__main__":
 
     #load environment 
 
-    environment = ContinuousDamEnv(train_data)
+    environment = DiscreteContinuousDamEnv(train_data)
 
     #load QL Agent - get the training function
     #agent = QLearnAgent(environment)
