@@ -15,9 +15,6 @@ from matplotlib import cm
 import pandas as pd
 import seaborn as sns
 
-
-
-
 class DQN(nn.Module):
     
     def __init__(self, env, learning_rate):
@@ -32,8 +29,6 @@ class DQN(nn.Module):
         super(DQN,self).__init__()
         input_features = len(env.observation_space.nvec)
         action_space = env.action_space.n
-        
-
         
         self.dense1 = nn.Linear(in_features = input_features, out_features = 128)
         self.dense2 = nn.Linear(in_features = 128, out_features = 64)
