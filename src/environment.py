@@ -71,7 +71,7 @@ class DamEpisodeData:
 
     def plot_fancy(self):
         sns.set()
-        price = self.price[-1000:]
+        price = self.price[-1001:-1]
         action = self.action[-1000:]
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
         cols = plt_col(action)
