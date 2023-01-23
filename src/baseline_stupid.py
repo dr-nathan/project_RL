@@ -59,6 +59,7 @@ class Baseline:
 
         return self.low_min_max, self.medium_min_max, self.high_min_max
 
+<<<<<<< Updated upstream
     def choice(self):
         #energy = self.max_stored_energy/2
         # energy_story = [energy]
@@ -69,6 +70,31 @@ class Baseline:
             self.medium_min_max,
             self.high_min_max,
         ) = self.get_low_medium_high_price()
+=======
+    def _select_action_threshold(self):
+        current_price = self.env.current_price
+
+        # buy
+        if current_price < self.low_min_max[1] :
+
+            return 2
+
+        # sell
+        if self.high_min_max[0] < current_price :
+            return 1
+
+        # else, do nothing
+        #if self.medium_min_max[0] < current_price < self.medium_min_max[1]: 
+        else:
+            return 0
+
+    def _select_action_hourly(self):
+        current_hour = self.env.current_date.hour
+
+        # buy
+        if 2 <= current_hour <= 6:
+            return 2
+>>>>>>> Stashed changes
 
         # for i in self.prices_train: #go through prices and takes decision
         for i in self.prices_val:
@@ -157,6 +183,12 @@ class Baseline:
         )  # this is total reward on validation set
         return self.env.episode_data          
 
+<<<<<<< Updated upstream
+=======
+    def run(self,title:str, strategy: str, plot: bool = True):
+        if strategy == "threshold":
+            action_selection = self._select_action_threshold
+>>>>>>> Stashed changes
 
 
     def plot_baseline(self):

@@ -23,11 +23,24 @@ class Agent:
 
     def make_decision(self, state, policy: str = "epsilon_greedy"):
         if policy == "greedy":
+<<<<<<< Updated upstream
             action = np.argmax(self.Qtable[state])
         elif policy == "epsilon_greedy":
             action = self.choose_action_eps_greedy(state, self.epsilon)
         else:
             raise ValueError("Unknown policy")
+=======
+            return np.argmax(self.Qtable[state])
+
+        if policy == "epsilon_greedy":
+            return self.choose_action_eps_greedy(state)
+
+            raise ValueError("Unknown policy")
+
+    def choose_action_eps_greedy(self, state):
+        if random.uniform(0, 1) < self.epsilon:
+            return self.env.action_space.sample()
+>>>>>>> Stashed changes
 
         return action
 
@@ -46,6 +59,68 @@ class Agent:
         self.alpha = alpha
 
         for episode in tqdm(range(n_episodes)):
+<<<<<<< Updated upstream
+=======
+
+            # reset environment
+            state = self.env.reset(
+                random_startpoint=random_startpoint, start_amount=start_amount
+            )
+
+            if self.epsilon_decay:
+                self.epsilon = epsilon_start * epsilon_decay_step**episode
+
+            # play until episode is terminated
+            terminated = False
+            while not terminated:
+                action = self.make_decision(state, policy)
+                next_state, reward, terminated, *_ = self.env.step(action)
+                self.update_Q_table(state, action, reward, next_state)
+                state = next_state
+
+            # store episode data
+            self.train_reward.append(self.env.episode_data.total_reward)
+
+            # if (episode + 1) % 100 == 0:
+            #    self.env.episode_data.plot()
+
+            if val_env is not None:
+                val_env.reset()
+                terminated = False
+                while not terminated:
+                    action = self.make_decision(state, "greedy")
+                    state, reward, terminated, *_ = val_env.step(action)
+
+                self.val_reward.append(val_env.episode_data.total_reward)
+
+    def validate(
+        self,
+        price_data: dict[datetime, float],
+        random_startpoint: bool = False,
+        start_amount: float = 0.5,
+    ):
+        # reset environment
+        state = self.env.reset(
+            price_data=price_data,
+            random_startpoint=random_startpoint,
+            start_amount=start_amount,
+        )
+
+        # play until episode is terminated
+        terminated = False
+        while not terminated:
+            action = self.make_decision(state, "greedy")
+            next_state, _, terminated, *_ = self.env.step(action)
+            state = next_state
+
+        return self.env.episode_data
+
+    def save(self, path: str):
+        np.save(path, self.Qtable)
+
+    def load(self, path: str):
+        self.Qtable = np.load(path)
+>>>>>>> Stashed changes
 
             # reset environment
             state = self.env.reset()

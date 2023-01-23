@@ -58,6 +58,13 @@ class DamEpisodeData:
 
     def plot_fancy(self):
         sns.set()
+<<<<<<< Updated upstream
+=======
+        price = self.price[-1001:-1]
+        action = self.action[-1000:]
+        #price = self.price[:1000]
+        #action = self.action[1:1001]
+>>>>>>> Stashed changes
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
         axs.scatter(range(len(self.price)),self.price,s=1, c=self.action, cmap='PuOr')
         #axs.scatter(range(len(self.action)), self.action, s=1, marker="x")

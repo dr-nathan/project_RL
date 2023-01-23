@@ -16,6 +16,17 @@ if __name__ == "__main__":
     agent = Agent(environment)
     episode_data = agent.train("epsilon_greedy", 30, epsilon=0.2, alpha=0.1)
 
+<<<<<<< Updated upstream
     print(agent.Qtable)
     #agent.env.episode_data.plot()
     agent.env.episode_data.plot_fancy()
+=======
+    # plot Q table
+    agent.visualize_Q_table()
+    agent.env.episode_data.plot_fancy()
+
+    print(agent.Qtable)
+    #agent.env.episode_data.plot()
+    #agent.env.episode_data.plot()
+
+>>>>>>> Stashed changes

@@ -12,7 +12,7 @@ import tsfresh
 
 
 def plot_vol(prices_train):
-    TRADING_DAYS= 365*24
+    TRADING_DAYS= 24
     returns = np.log(prices_train/prices_train.shift(1))
     returns.fillna(0, inplace=True)
     volatility = returns.rolling(window=TRADING_DAYS).std()*np.sqrt(TRADING_DAYS)
@@ -33,7 +33,7 @@ def plot_vol(prices_train):
     plt.plot(volatility, label = "volatility")
     ax1.set_xlabel('Date')
     ax1.set_ylabel('Volatility')
-    ax1.set_title('Annualized volatility for Apple Inc')
+    ax1.set_title('Daily volatility')
     plt.legend()
     plt.show()
 
@@ -166,6 +166,8 @@ def create_df(df):
     df_new['price_range'] = get_low_medium_high_price(df_new['price'])
     df_new['night_day'] = df_new.apply(nigh_day,axis=1)
     df_new['year'] = df_new['time'].dt.strftime('%Y')
+    df_new['average_day_before'] = df_new['price'].rolling(24).mean()
+    df_new['volatilit'] = df_new['price'].rolling(24).std()*np.sqrt(24)
 
     return df_new
 
@@ -174,10 +176,12 @@ def create_df(df):
 def main():
     df = pd.read_excel("./data/train.xlsx")
     df_new = create_df(df)
+    print(df_new)
   
     #dict = convert_dataframe(df)
     #prices_train_list = [*dict.values()]
     #prices_train =  pd.DataFrame(prices_train_list)
+    #plot_vol(prices_train=prices_train)
 
     #df_new = pd.DataFrame()
     #df_new['time'] = [*dict.keys()]
@@ -222,20 +226,18 @@ def main():
  
 
     a = df_new.groupby(['week_day'])
-    plot_hour_day(a)
-    print(a.get_group(0).groupby(['hour'])['price'].mean())
+    #plot_hour_day(a)
+
 
     b = df_new.groupby(['month'])
-    plot_hour_month(b)
+    #plot_hour_month(b)
 
     c = df_new.groupby(['season'])
-    plot_hour_season(c)
+    #plot_hour_season(c)
 
     d = df_new.groupby(['year'])
-    plot_year(d)
+    #plot_year(d)
 
-    plt.plot(df_new['price'])
-    plt.show()
 
 
 
