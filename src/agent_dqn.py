@@ -1,6 +1,4 @@
-import numpy as np
 from tqdm import tqdm
-
 from datetime import datetime
 import torch 
 import torch.nn as nn
@@ -9,9 +7,6 @@ import torch.nn.functional as F
 import random
 
 import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
-import pandas as pd
-import seaborn as sns
 
 
 class DQN(nn.Module):
@@ -22,10 +17,10 @@ class DQN(nn.Module):
         input_features, *_ = env.observation_space.shape
         action_space = env.action_space.n
         
-        self.dense1 = nn.Linear(in_features = input_features, out_features = 128)
-        self.dense2 = nn.Linear(in_features = 128, out_features = 64)
-        self.dense3 = nn.Linear(in_features = 64, out_features = 32)
-        self.dense4 = nn.Linear(in_features = 32, out_features = action_space)
+        self.dense1 = nn.Linear(in_features=input_features, out_features=64)
+        # self.dense2 = nn.Linear(in_features=128, out_features=64)
+        self.dense3 = nn.Linear(in_features=64, out_features=32)
+        self.dense4 = nn.Linear(in_features=32, out_features=action_space)
         
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
@@ -33,7 +28,7 @@ class DQN(nn.Module):
     def forward(self, x):
 
         x = torch.relu(self.dense1(x))
-        x = torch.relu(self.dense2(x))
+        # x = torch.relu(self.dense2(x))
         x = torch.relu(self.dense3(x))
         x = self.dense4(x)
         
@@ -54,8 +49,10 @@ class ExperienceReplay:
 
         self.env = env
         self.replay_size = replay_size
-        self.reset()
         self.episode_rewards = []
+
+        self.reset()
+
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     def fill_replay_memory(self):
@@ -64,7 +61,7 @@ class ExperienceReplay:
         """
 
         env = self.env
-        state = env.reset(random_startpoint=True)  # TODO: implement random startpoint
+        state = env.reset()  # TODO: implement random startpoint
         episode_reward = 0.0
 
         for i in range(self.replay_size):
@@ -207,6 +204,7 @@ class DDQNAgent:
         self.target_network.load_state_dict(self.online_network.state_dict())
 
     def choose_action(self, state, policy):
+        state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
         if policy == "random":
             return self.env.action_space.sample()
         elif policy == "greedy":
@@ -241,7 +239,7 @@ class DDQNAgent:
 
         return self.env.episode_data  
 
-# TODO: following funcs have to be updated to work with new agent
+# TODO: has to be updated to work with new agent
     def plot_rewards_over_episode(self):
         plt.plot(self.train_reward, label="Train")
         plt.plot(self.val_reward, label="Validation")
@@ -251,126 +249,4 @@ class DDQNAgent:
         plt.ylabel("Total reward")
         plt.show()
 
-    def plot_price_bins(self, train_price_data, val_price_data):
-        sns.set()
-        # cap prices
-        train_price_data = [min(170, p) for p in train_price_data.values()]
-        val_price_data = [min(170, p) for p in val_price_data.values()]
-        # make long df (sucks, but necessary for seaborn).
-        df = pd.DataFrame(
-            {
-                "Price": train_price_data + val_price_data,
-                "Set": ["Train"] * len(train_price_data)
-                + ["Validation"] * len(val_price_data),
-            }
-        )
-        # plot
-        sns.displot(df, x="Price", hue="Set", kind="kde", fill=True)
-        for q in self.env.quantiles:
-            plt.axvline(q, color="red", lw=0.7)
-        plt.title("Price distribution")
-        plt.xlabel("Price")
-        plt.tight_layout()
-        plt.show()
-
-    def plot_price_distribution(self):
-        sns.set()
-        # make dist plot
-        sns.displot(self.env.price_data.values(), kde=True)
-        plt.title("Price distribution")
-        plt.xlabel("Price")
-        plt.ylabel("Count")
-        # mark quantiles
-        for q in [0.4, 0.6]:
-            plt.axvline(np.quantile(self.env.price_data.values(), q), color="red")
-        plt.xlim(0, 170)
-        plt.tight_layout()
-        plt.show()
-
-    def visualize_Q_table(self):
-
-        ## 3D plots ##
-        # plot V value ~ price + hour
-        # obs space is hour, price, res_level, action
-        # x = price (20 bins)
-        x = np.arange(self.env.observation_space.nvec[1])
-        # y = time (24 bins)
-        y = np.arange(self.env.observation_space.nvec[0])
-        x, y = np.meshgrid(x, y)
-        # z = V value
-        # average out unnecessary dimensions
-        z = np.mean(self.Qtable, axis=2)
-        # get argamx over action dimension
-        z_action = np.argmax(z, axis=2)
-        # get V value
-        z = np.max(z, axis=2)
-        # plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
-        colors = {0: "white", 1: "green", 2: "red"}
-        z_action = np.vectorize(colors.get)(z_action)
-        ax.plot_surface(x, y, z, facecolors=z_action)
-        # set labels for colors
-        labels = ["Hold", "Sell", "Buy"]
-        handles = [
-            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
-        ]
-        ax.legend(handles=handles)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Time")
-        ax.set_zlabel("V value")
-        plt.show()
-
-        # plot V value ~ price + res_level
-        x = np.arange(self.env.observation_space.nvec[1])
-        y = np.arange(self.env.observation_space.nvec[2])
-        x, y = np.meshgrid(x, y)
-        z = np.mean(self.Qtable, axis=0)
-        z_action = np.argmax(z, axis=2).T
-        z_action = np.vectorize(colors.get)(z_action)
-        z = np.max(z, axis=2).T
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z, facecolors=z_action)
-        labels = ["Hold", "Sell", "Buy"]
-        handles = [
-            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
-        ]
-        ax.legend(handles=handles)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Reservoir level")
-        ax.set_zlabel("V value")
-        plt.set_cmap("viridis")
-        plt.show()
-
-        ## 2D plots ##
-        # plot V value ~ price
-        x = np.arange(self.env.observation_space.nvec[1])
-        y = np.mean(self.Qtable, axis=(0, 2))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ price")
-        plt.xlabel("Price")
-        plt.ylabel("V value")
-        plt.show()
-
-        # plot V value ~ res_level
-        x = np.arange(self.env.observation_space.nvec[2])
-        y = np.mean(self.Qtable, axis=(0, 1))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ reservoir level")
-        plt.xlabel("Reservoir level")
-        plt.ylabel("V value")
-        plt.show()
-
-        # plot V value ~ time
-        x = np.arange(self.env.observation_space.nvec[0])
-        y = np.mean(self.Qtable, axis=(1, 2))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ time")
-        plt.xlabel("Time")
-        plt.ylabel("V value")
-        plt.show()
 

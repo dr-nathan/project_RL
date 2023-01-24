@@ -307,7 +307,7 @@ class ContinuousDamEnv(DamEnvBase):
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(5,))
 
         super().__init__(*args, **kwargs)
 
@@ -326,10 +326,10 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_price / self.max_price,
             self.stored_energy / self.max_stored_energy,
             self._is_winter(),
-            self._is_weekend(),
-            self._mean_previous_day(),
-            self._std_previous_day(),
-            self._volatility()
+            self._is_weekend()
+            #self._mean_previous_day(),
+            #self._std_previous_day(),
+            #self._volatility()
         )
     
     def _is_weekend(self):

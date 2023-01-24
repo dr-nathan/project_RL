@@ -42,9 +42,11 @@ if __name__ == "__main__":
         buffer_size=len(train_data)
     )
 
-    n_episodes = 10000
+    n_episodes = 1000
 
     dagent.training_loop(n_episodes)
     
-    dagent.validate(price_data=val_data)
+    episode_data = dagent.validate(price_data=val_data)
+
+    episode_data.debug_plot("Validation episode")
  
