@@ -6,7 +6,7 @@ import seaborn as sns
 
 
 def plot_vol(prices_train):
-    TRADING_DAYS = 365 * 24
+    TRADING_DAYS = 7 * 24
     returns = np.log(prices_train / prices_train.shift(1))
     returns.fillna(0, inplace=True)
     volatility = returns.rolling(window=TRADING_DAYS).std() * np.sqrt(TRADING_DAYS)
@@ -195,10 +195,12 @@ def create_df(df):
 def main():
     df = pd.read_excel("./data/train.xlsx")
     df_new = create_df(df)
+    
 
-    # dict = convert_dataframe(df)
-    # prices_train_list = [*dict.values()]
-    # prices_train =  pd.DataFrame(prices_train_list)
+    dict = convert_dataframe(df)
+    prices_train_list = [*dict.values()]
+    prices_train =  pd.DataFrame(prices_train_list)
+    plot_vol(prices_train=prices_train)
 
     # df_new = pd.DataFrame()
     # df_new['time'] = [*dict.keys()]

@@ -71,7 +71,7 @@ class DamEpisodeData:
 
     def plot_fancy(self):
         sns.set()
-        price = self.price[-1000:]
+        price = self.price[-1001:-1]
         action = self.action[-1000:]
         fig, axs = plt.subplots(1, 1, figsize=(10, 10))
         cols = plt_col(action)
@@ -307,7 +307,7 @@ class ContinuousDamEnv(DamEnvBase):
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(3,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(4,))
 
         super().__init__(*args, **kwargs)
 
@@ -319,6 +319,27 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_date.hour / 24,
             self.current_price / self.max_price,
             self.stored_energy / self.max_stored_energy,
+            self._is_winter(),
         )
 
-    # TODO: normalize price?
+    def _is_winter(self):
+        # November is actually not winter, but we generally see higher prices here too
+        return self.current_date.month in [1, 2, 12, 11]
+
+class DiscreteContinuousDamEnv(ContinuousDamEnv):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.action_space = gym.spaces.Discrete(3)
+
+    def _action_to_flow(self, action: int):
+        # empty reservor / sell
+        if action == 1:
+            return self.max_flow_rate
+
+        # fill reservor / buy
+        if action == 2:
+            return -self.max_flow_rate
+
+        # do nothing, i.e. action == 0 (default)
+        return 0.0

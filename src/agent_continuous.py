@@ -1,23 +1,30 @@
-from datetime import datetime
+import math
 import random
 import time
 from collections import deque
+from datetime import datetime
 
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.optim as optim
-from torch import nn
+from torch import nn, optim
 from tqdm import tqdm
 
-DEVICE = torch.device(
-    "cuda"
-    if torch.cuda.is_available()
-    else "mps"
-    if torch.backends.mps.is_available()
-    else "cpu"
-)
+from src.environment import ContinuousDamEnv
+
+# DEVICE = torch.device(
+#     "cuda"
+#     if torch.cuda.is_available()
+#     else "mps"
+#     if torch.backends.mps.is_available()
+#     else "cpu"
+# )
+
+# it's generally actually not beneficial to use a GPU for this, as steps are not taken in parallel
+# so single-core performance is more important. during backpropagation a GPU can be faster, but the
+# overhead of copying data to and from the GPU is not worth it
+DEVICE = torch.device("cpu")
 
 
 class DQN(nn.Module):
@@ -406,30 +413,26 @@ class DDQNAgent:
 
 
 class PolicyNetwork(nn.Module):
-    def __init__(self, state_size, action_size):
-        if torch is None:
-            raise ImportError("PyTorch is not installed.")
-
-        super(PolicyNetwork, self).__init__()
-        self.fc1 = nn.Linear(state_size, 24)
-        self.fc2 = nn.Linear(24, action_size)
-        self.softmax = nn.Softmax(dim=1)
+    def __init__(self, state_size: int, action_size: int, hidden_size: int = 5):
+        super().__init__()
+        self.fc1 = nn.Linear(state_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc_mean = nn.Linear(hidden_size, action_size)
+        self.fc_std = nn.Linear(hidden_size, action_size)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
-        x = self.fc2(x)
-        # x = self.softmax(x)
-        return x
+        x = torch.relu(self.fc2(x))
+        mean = self.fc_mean(x)
+        std = torch.exp(self.fc_std(x))
+        return mean, std
 
 
 class PolicyGradientAgent:
-    def __init__(self, learning_rate: float, env: gym.Env):
-        if torch is None:
-            raise ImportError("PyTorch is not installed.")
-
+    def __init__(self, learning_rate: float, env: ContinuousDamEnv):
         self.env = env
-        self.state_size = len(env.observation_space.nvec)
-        self.action_size = env.action_space.n
+        self.state_size, *_ = env.observation_space.shape
+        self.action_size, *_ = env.action_space.shape
 
         self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(
             DEVICE
@@ -439,16 +442,14 @@ class PolicyGradientAgent:
         )
 
     def get_action(self, state):
-        state = torch.tensor(state).to(DEVICE).float().unsqueeze(0)
-        probs = self.policy_network(state)
-        action = torch.multinomial(probs, 1)
-
-        return action.item()
+        state = torch.tensor(state, device=DEVICE).float().unsqueeze(0)
+        mean, std = self.policy_network(state)
+        action = torch.normal(mean, std)
+        return action
 
     def update_policy(self, rewards, log_probs):
         returns = log_probs * rewards.sum()
         policy_loss = -returns.mean()
-        policy_loss.requires_grad = True
         self.optimizer.zero_grad()
         policy_loss.backward()
         self.optimizer.step()
@@ -459,24 +460,25 @@ class PolicyGradientAgent:
             log_probs = []
             rewards = []
             terminated = False
-            i = 0
 
             while not terminated:
-                i += 1
-
-                action = self.get_action(state)
-                next_state, reward, terminated, *_ = self.env.step(action)
-                log_probs.append(
-                    torch.log(
-                        self.policy_network(
-                            torch.tensor(state).to(DEVICE).float().unsqueeze(0)
-                        )[0, action]
-                    )
+                mean, std = self.policy_network(
+                    torch.tensor(state, device=DEVICE).float().unsqueeze(0)
                 )
+                action = torch.normal(mean, std)
+                log_probs.append(
+                    -0.5 * ((action - mean) / std).pow(2).sum()
+                    - 0.5 * action.numel() * math.log(2 * math.pi)
+                    - std.log().sum()
+                )
+                next_state, reward, terminated, *_ = self.env.step(action.item())
                 rewards.append(reward)
                 state = next_state
 
-            self.update_policy(torch.tensor(rewards), torch.tensor(log_probs))
+            self.update_policy(
+                torch.tensor(rewards, device=DEVICE),
+                torch.stack(log_probs),
+            )
 
         return self.env.episode_data
 
@@ -486,7 +488,7 @@ class PolicyGradientAgent:
 
         while not terminated:
             action = self.get_action(state)
-            next_state, _, terminated, *_ = self.env.step(action)
+            next_state, _, terminated, *_ = self.env.step(action.item())
             state = next_state
 
         return self.env.episode_data
