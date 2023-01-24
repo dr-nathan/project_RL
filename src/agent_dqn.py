@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
 import seaborn as sns
-from copy import deepcopy
 
 
 class DQN(nn.Module):
@@ -114,7 +113,7 @@ class ExperienceReplay:
 
 class DDQNAgent:
     
-    def __init__(self, env, device, epsilon_decay,
+    def __init__(self, env, device, epsilon, epsilon_decay,
                  epsilon_start, epsilon_end, discount_rate, lr, buffer_size):
         '''
         Params:
@@ -130,6 +129,7 @@ class DDQNAgent:
         '''
         self.env = env
         self.device = device
+        self.epsilon = epsilon
         self.epsilon_decay = epsilon_decay
         self.epsilon_start = epsilon_start
         self.epsilon_end = epsilon_end
@@ -206,71 +206,6 @@ class DDQNAgent:
 
         self.target_network.load_state_dict(self.online_network.state_dict())
 
-    def train(
-        self,
-        policy,
-        n_episodes: int,
-        epsilon: float = 0.1,
-        epsilon_decay: bool = False,
-        alpha: float = 0.1,
-        random_startpoint: bool = False,
-        start_amount: float = 0.5,
-        val_price_data:dict[datetime, float] | None = None,
-    ):
-
-        # intitialize stuff
-        self.alpha = alpha
-        self.epsilon_decay = epsilon_decay
-        self.train_reward = []
-        self.val_reward = []
-
-        if self.epsilon_decay:
-            epsilon_start = 1
-            epsilon_end = 0.1
-            epsilon_decay_step = np.exp(
-                np.log(epsilon_end / epsilon_start) / n_episodes
-            )
-        else:
-            self.epsilon = epsilon
-
-        val_env = None
-        if val_price_data is not None:
-            val_env = deepcopy(self.env)
-            val_env.reset(price_data=val_price_data)
-
-        for episode in tqdm(range(n_episodes)):
-
-            # reset environment
-            state = self.env.reset(
-                random_startpoint=random_startpoint, start_amount=start_amount
-            )
-
-            if self.epsilon_decay:
-                self.epsilon = epsilon_start * epsilon_decay_step**episode
-
-            # play until episode is terminated
-            terminated = False
-            while not terminated:
-                action = self.choose_action(state, policy)
-                next_state, reward, terminated, *_ = self.env.step(action)
-                #self.update_Q_table(state, action, reward, next_state)
-                state = next_state
-
-            # store episode data
-            self.train_reward.append(self.env.episode_data.total_reward)
-
-            # if (episode + 1) % 100 == 0:
-            #    self.env.episode_data.plot()
-
-            if val_env is not None:
-                val_env.reset()
-                terminated = False
-                while not terminated:
-                    action = self.choose_action(state, "greedy")
-                    state, reward, terminated, *_ = val_env.step(action)
-
-                self.val_reward.append(val_env.episode_data.total_reward)
-
     def choose_action(self, state, policy):
         if policy == "random":
             return self.env.action_space.sample()
@@ -283,7 +218,6 @@ class DDQNAgent:
                 return self.online_network(state).argmax().item()
         else:
             raise ValueError("Unknown policy")
-
 
     def validate(
         self,
@@ -307,6 +241,7 @@ class DDQNAgent:
 
         return self.env.episode_data  
 
+# TODO: following funcs have to be updated to work with new agent
     def plot_rewards_over_episode(self):
         plt.plot(self.train_reward, label="Train")
         plt.plot(self.val_reward, label="Validation")

@@ -6,26 +6,7 @@ import torch
 from src.agent_dqn import DDQNAgent
 
 
-if __name__ == "__main__": 
-    #Set the hyperparameters
-
-    #Discount rate
-    discount_rate = 0.99
-    #That is the sample that we consider to update our algorithm
-    batch_size = 32
-    #Maximum number of transitions that we store in the buffer
-    buffer_size = 1000
-    #Minimum number of random transitions stored in the replay buffer
-    min_replay_size = 1000
-    #Starting value of epsilon
-    epsilon_start = 1.0
-    #End value (lowest value) of epsilon
-    epsilon_end = 0.05
-    #Decay period until epsilon start -> epsilon end
-    epsilon_decay = 10000
-
-    max_episodes = 250000 
-    lr = 5e-4
+if __name__ == "__main__":
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -41,40 +22,29 @@ if __name__ == "__main__":
     environment = DiscreteContinuousDamEnv(train_data)  # continuous states with discrete actions
 
     # load the DQN agent
+    discount_rate = 0.98
+    batch_size = 64
+    epsilon = 0.1
+    epsilon_start = 1.0
+    epsilon_end = 0.05
+    epsilon_decay = 10000
+    lr = 5e-4
+
     dagent = DDQNAgent(
         env=environment,
         device=device,
+        epsilon=epsilon,
         epsilon_decay=epsilon_decay,
         epsilon_start=epsilon_start,
         epsilon_end=epsilon_end,
         discount_rate=discount_rate,
         lr=lr,
-        buffer_size=buffer_size
+        buffer_size=len(train_data)
     )
 
+    n_episodes = 10000
 
-
-    # train parameters
-    epsilon_decay = False
-    epsilon = 0.8  # overriden if epsilon_decay is True
-    alpha = 0.1
-    n_episodes = 10
-    random_startpoint = False
-    start_amount = 0.5
-
-    dagent.training_loop(10000)
-    # dagent.train(
-    #     "epsilon_greedy",
-    #     n_episodes,
-    #     epsilon,
-    #     epsilon_decay,
-    #     alpha,
-    #     random_startpoint,
-    #     start_amount,
-    #     val_price_data=val_data
-    # )
-    
-    #dagent.training_loop(environment,  max_episodes=n_episodes, target_ = True)
+    dagent.training_loop(n_episodes)
     
     dagent.validate(price_data=val_data)
  
