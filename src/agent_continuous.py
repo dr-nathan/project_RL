@@ -3,6 +3,7 @@ import random
 import time
 from collections import deque
 from datetime import datetime
+from pathlib import Path
 
 import gymnasium as gym
 import numpy as np
@@ -434,51 +435,52 @@ class PolicyGradientAgent:
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
 
-        self.policy_network = PolicyNetwork(self.state_size, self.action_size).to(
-            DEVICE
-        )
+        self.policy_network = PolicyNetwork(self.state_size, self.action_size)
         self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate
         )
 
     def get_action(self, state):
-        state = torch.tensor(state, device=DEVICE).float().unsqueeze(0)
+        state = torch.tensor(state).float().unsqueeze(0)
         mean, std = self.policy_network(state)
         action = torch.normal(mean, std)
-        return action
+        return action.item()
 
-    def update_policy(self, rewards, log_probs):
-        returns = log_probs * rewards.sum()
-        policy_loss = -returns.mean()
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
+    def update_policy(self, batch):
+        # TODO: make cuda optional
+        with torch.cuda.device(0):
+            # compute the probabilities of the actions taken under the current policy
+            means = torch.stack([e[0] for e in batch])
+            stds = torch.stack([e[1] for e in batch])
+            actions = torch.stack([e[2] for e in batch])
+            rewards = torch.vstack([torch.tensor(e[3]) for e in batch])
+
+            log_probs = self._get_log_prob(means, stds, actions)
+
+            returns = log_probs * rewards.sum()
+            policy_loss = -returns.mean()
+            self.optimizer.zero_grad()
+            policy_loss.backward()
+            self.optimizer.step()
 
     def train(self, n_episodes):
         for _ in tqdm(range(n_episodes)):
             state = self.env.reset()
-            log_probs = []
-            rewards = []
             terminated = False
 
+            batch: list[tuple[float | torch.Tensor, ...]] = []
+
             while not terminated:
-                mean, std = self.policy_network(
-                    torch.tensor(state, device=DEVICE).float().unsqueeze(0)
-                )
+                state_tensor = torch.tensor(state).float().unsqueeze(0)
+                mean, std = self.policy_network(state_tensor)
                 action = torch.normal(mean, std)
-                log_probs.append(
-                    -0.5 * ((action - mean) / std).pow(2).sum()
-                    - 0.5 * action.numel() * math.log(2 * math.pi)
-                    - std.log().sum()
-                )
+
                 next_state, reward, terminated, *_ = self.env.step(action.item())
-                rewards.append(reward)
                 state = next_state
 
-            self.update_policy(
-                torch.tensor(rewards, device=DEVICE),
-                torch.stack(log_probs),
-            )
+                batch.append((mean, std, action, reward))
+
+            self.update_policy(batch)
 
         return self.env.episode_data
 
@@ -488,7 +490,23 @@ class PolicyGradientAgent:
 
         while not terminated:
             action = self.get_action(state)
-            next_state, _, terminated, *_ = self.env.step(action.item())
+            next_state, _, terminated, *_ = self.env.step(action)
             state = next_state
 
         return self.env.episode_data
+
+    def _get_log_prob(self, mean, std, action):
+        log_std = torch.log(std)
+        var = std.pow(2)
+        log_prob = (
+            -0.5 * ((action - mean) / var).pow(2)
+            - 0.5 * math.log(2 * math.pi)
+            - log_std
+        )
+        return log_prob.sum(dim=-1)
+
+    def save(self, path: str | Path):
+        torch.save(self.policy_network.state_dict(), path)
+
+    def load(self, path: str | Path):
+        self.policy_network.load_state_dict(torch.load(path))
