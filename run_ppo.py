@@ -1,14 +1,15 @@
 import os
-from pathlib import Path
 from datetime import datetime
-import pandas as pd
+from pathlib import Path
 
-import torch
 import numpy as np
+import pandas as pd
+import torch
 
 from src.agent_pg import PPO
-from src.utils import convert_dataframe
 from src.environment import ContinuousDamEnv
+from src.utils import convert_dataframe
+
 
 ################################### Training ###################################
 def train():
@@ -17,9 +18,8 @@ def train():
     )
 
     ####### initialize environment hyperparameters ######
-    max_ep_len = 5  # max timesteps in one episode
-    # max_training_timesteps = int(3e6)   # break training loop if timeteps > max_training_timesteps
-    max_training_timesteps = 5000
+    max_ep_len = 10000  # max timesteps in one episode
+    max_training_timesteps = int(3e6)   # break training loop if timeteps > max_training_timesteps
 
     print_freq = max_ep_len * 10  # print avg reward in the interval (in num timesteps)
     log_freq = max_ep_len * 2  # log avg reward in the interval (in num timesteps)
@@ -52,9 +52,6 @@ def train():
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
     train_data = convert_dataframe(train_data)
 
-    val_data = pd.read_excel(Path(__file__).parent / "data" / "validate.xlsx")
-    val_data = convert_dataframe(val_data)
-
     # create environment and agent
     env_name = "ContinuousDamEnv"
     env = ContinuousDamEnv(train_data)
@@ -68,13 +65,8 @@ def train():
     ###################### logging ######################
 
     #### log files for multiple runs are NOT overwritten
-    log_dir = "PPO_logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
-    log_dir = log_dir + "/" + env_name + "/"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    log_dir = "PPO_logs" + "/" + env_name + "/"
+    Path(log_dir).mkdir(parents=True, exist_ok=True)
 
     #### get number of log files in log directory
     run_num = 0
