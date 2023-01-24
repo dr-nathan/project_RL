@@ -20,8 +20,6 @@ import seaborn as sns
 from copy import deepcopy
 
 
-
-
 class DQN(nn.Module):
     
     def __init__(self, env, learning_rate):
@@ -99,7 +97,6 @@ class ExperienceReplay:
                 obs, _ = env.reset(seed=seed)
         
         print('Initialization with random transitions is done!')
-      
           
     def add_data(self, data): 
         '''
@@ -145,9 +142,6 @@ class ExperienceReplay:
         
         self.reward_buffer.append(reward)
         
-
-
-
 
 class DDQNAgent:
     
@@ -265,11 +259,8 @@ class DDQNAgent:
         self.online_network.optimizer.step()
         
     def update_target_network(self):
-        
-        
-        self.target_network.load_state_dict(self.online_network.state_dict())
-    
 
+        self.target_network.load_state_dict(self.online_network.state_dict())
 
     def train(
         self,
@@ -490,11 +481,6 @@ class DDQNAgent:
         plt.xlabel("Time")
         plt.ylabel("V value")
         plt.show()
-
-      
-
-
-
 
 
 def training_loop(self,  agent, max_episodes, target_ = False, seed=42):

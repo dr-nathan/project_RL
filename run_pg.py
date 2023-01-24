@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.agent_continuous import PolicyGradientAgent
+from src.agent_pg import PolicyGradientAgent
 from src.environment import ContinuousDamEnv
 from src.utils import convert_dataframe
 

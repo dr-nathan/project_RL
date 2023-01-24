@@ -332,7 +332,8 @@ class ContinuousDamEnv(DamEnvBase):
         # November is actually not winter, but we generally see higher prices here too
         return self.current_date.month in [1, 2, 12, 11]
 
-class DiscreteContinuousDamEnv(ContinuousDamEnv):
+
+class DiscreteContinuousDamEnv(ContinuousDamEnv):  # NV: continuous states but discrete actions?
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
