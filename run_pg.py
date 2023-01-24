@@ -20,10 +20,19 @@ if __name__ == "__main__":
     agent = PolicyGradientAgent(learning_rate=0.1, env=environment)
 
     # train agent
-    n_episodes = 10
+    n_episodes = 100
     random_startpoint = False
 
+    # if file exists, agent
+    filepath = Path(__file__).parent / "pg_agent_state"
+    if filepath.exists():
+        agent.load(filepath)
+        print("Loaded agent from file")
+
     episode_data = agent.train(n_episodes)
+
+    # save agent
+    agent.save(filepath)
 
     # agent.env.plot_price_distribution()
     agent.env.episode_data.debug_plot("Final training episode")

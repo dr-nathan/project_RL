@@ -312,6 +312,12 @@ class ContinuousDamEnv(DamEnvBase):
         super().__init__(*args, **kwargs)
 
     def _action_to_flow(self, action: float):
+        # make sure action is in range [-1, 1]
+        if action > 1:
+            action = 1
+        elif action < -1:
+            action = -1
+
         return action * self.max_flow_rate
 
     def _get_state(self):
