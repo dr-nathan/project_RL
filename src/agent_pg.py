@@ -75,10 +75,11 @@ class PolicyGradientAgent:
             return
 
         # TODO: check if this works
-        if torch.backends.mps.is_available():
-            with torch.backends.mps.device(0):
-                self._update_policy(batch)
-            return
+        # CONCLUSION: Nope
+        # if torch.backends.mps.is_available():
+        #     with torch.backends.mps.device(0):
+        #         self._update_policy(batch)
+        #     return
 
         self._update_policy(batch)
 
