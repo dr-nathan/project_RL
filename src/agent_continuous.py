@@ -435,7 +435,15 @@ class PolicyNetwork(nn.Module):
 
 
 class PolicyGradientAgent:
-    def __init__(self, learning_rate: float, env: ContinuousDamEnv):
+    def __init__(
+        self,
+        learning_rate: float,
+        env: ContinuousDamEnv,
+        buffer_size: int = 1000,
+        gamma: float = 0.99,
+        epsilon: float = 0.2,
+        value_loss_coef: float = 0.5,
+    ):
         self.env = env
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
@@ -446,6 +454,11 @@ class PolicyGradientAgent:
         self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate
         )
+        self.buffer = deque(maxlen=buffer_size)
+
+        self.gamma = gamma
+        self.epsilon = epsilon
+        self.value_loss_coef = value_loss_coef
 
     def get_action(self, state):
         state = torch.tensor(state, device=DEVICE).float().unsqueeze(0)
@@ -453,18 +466,37 @@ class PolicyGradientAgent:
         action = torch.normal(mean, std)
         return action
 
-    def update_policy(self, rewards, log_probs):
-        returns = log_probs * rewards.sum()
-        policy_loss = -returns.mean()
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
+    def update_policy(self, batch):
+        with torch.cuda.device(0):
+            # compute the probabilities of the actions taken under the current policy
+            states = torch.stack([torch.as_tensor(e[0]) for e in batch])
+            actions = torch.stack([e[1] for e in batch])
+            rewards = torch.vstack([torch.tensor(e[2]) for e in batch])
+            next_states = torch.stack([torch.tensor(e[3]) for e in batch])
+            log_probs = self._get_log_prob(states, actions)
 
-    def train(self, n_episodes):
+            # compute the advantage estimates
+            with torch.no_grad():
+                mean_values,_ = self.policy_network(states)
+                mean_next_values,_ = self.policy_network(next_states)
+                returns = rewards + self.gamma * mean_next_values
+                advantages = returns - mean_values
+
+            # compute the policy loss and the value function loss
+            surr1 = log_probs - torch.log(advantages.detach())
+            surr2 = log_probs - torch.log(-advantages.detach())
+            policy_loss = -torch.min(surr1, surr2).mean()
+            value_loss = F.mse_loss(mean_values, returns)
+
+            # update the agent's policy parameters
+            self.optimizer.zero_grad()
+            loss = policy_loss + self.value_loss_coef * value_loss
+            loss.backward()
+            self.optimizer.step()
+
+    def train(self, n_episodes: int, batch_size: int = 512):
         for _ in tqdm(range(n_episodes)):
             state = self.env.reset()
-            log_probs = []
-            rewards = []
             terminated = False
 
             while not terminated:
@@ -472,19 +504,15 @@ class PolicyGradientAgent:
                     torch.tensor(state, device=DEVICE).float().unsqueeze(0)
                 )
                 action = torch.normal(mean, std)
-                log_probs.append(
-                    -0.5 * ((action - mean) / std).pow(2).sum()
-                    - 0.5 * action.numel() * math.log(2 * math.pi)
-                    - std.log().sum()
-                )
                 next_state, reward, terminated, *_ = self.env.step(action.item())
-                rewards.append(reward)
+
+                self.buffer.append((state, action, reward, next_state))
+
                 state = next_state
 
-            self.update_policy(
-                torch.tensor(rewards, device=DEVICE),
-                torch.stack(log_probs),
-            )
+            if len(self.buffer) >= batch_size:
+                batch = random.sample(self.buffer, batch_size)
+                self.update_policy(batch)
 
         return self.env.episode_data
 
@@ -498,3 +526,14 @@ class PolicyGradientAgent:
             state = next_state
 
         return self.env.episode_data
+
+    def _get_log_prob(self, states, actions):
+        mean, std = self.policy_network(states)
+        log_std = torch.log(std)
+        var = std.pow(2)
+        log_prob = (
+            -0.5 * ((actions - mean) / var).pow(2)
+            - 0.5 * math.log(2 * math.pi)
+            - log_std
+        )
+        return log_prob.sum(dim=-1)

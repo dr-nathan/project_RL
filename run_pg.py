@@ -20,7 +20,7 @@ if __name__ == "__main__":
     agent = PolicyGradientAgent(learning_rate=0.1, env=environment)
 
     # train agent
-    n_episodes = 10
+    n_episodes = 250
     random_startpoint = False
 
     episode_data = agent.train(n_episodes)
