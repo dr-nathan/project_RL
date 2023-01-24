@@ -1,18 +1,13 @@
-import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 
-import time
 from datetime import datetime
-import matplotlib.pyplot as plt
 import torch 
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import random
-from collections import deque
 
-from matplotlib import cm
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import pandas as pd
@@ -24,8 +19,8 @@ class DQN(nn.Module):
     
     def __init__(self, env, learning_rate):
 
-        super(DQN,self).__init__()
-        input_features,*_ = env.observation_space.shape
+        super().__init__()
+        input_features, *_ = env.observation_space.shape
         action_space = env.action_space.n
         
         self.dense1 = nn.Linear(in_features = input_features, out_features = 128)
@@ -34,14 +29,13 @@ class DQN(nn.Module):
         self.dense4 = nn.Linear(in_features = 32, out_features = action_space)
         
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
-        self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         
     def forward(self, x):
 
-        # Solution:
-        x = torch.tanh(self.dense1(x))
-        x = torch.tanh(self.dense2(x))
-        x = torch.tanh(self.dense3(x))
+        x = torch.relu(self.dense1(x))
+        x = torch.relu(self.dense2(x))
+        x = torch.relu(self.dense3(x))
         x = self.dense4(x)
         
         return x
@@ -49,66 +43,66 @@ class DQN(nn.Module):
 
 class ExperienceReplay:
     
-    def __init__(self, env, buffer_size, min_replay_size = 1000, seed = 123):
-        
-        '''
+    def __init__(self, env, replay_size = 1000):
+
+        """
         Params:
         env = environment that the agent needs to play
         buffer_size = max number of transitions that the experience replay buffer can store
         min_replay_size = min number of (random) transitions that the replay buffer needs to have when initialized
         seed = seed for random number generator for reproducibility
-        '''
+        """
+
         self.env = env
-        self.min_replay_size = min_replay_size
-        self.replay_buffer = deque(maxlen=buffer_size)
-        self.reward_buffer = deque([0], maxlen = 100)
+        self.replay_size = replay_size
+        self.reset()
+        self.episode_rewards = []
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        
-        print('Please wait, the experience replay buffer will be filled with random transitions')
-                
-        obs = self.env.reset(seed=seed)
-        for _ in range(self.min_replay_size):
 
-            action = env.action_space.sample()
-            new_obs, rew, terminated, * _ = env.step(action)
-            done = terminated 
+    def fill_replay_memory(self):
+        """
+        Fills the replay memory with random transitions.
+        """
 
-            transition = (obs, action, rew, done, new_obs)
-            self.replay_buffer.append(transition)
-            obs = new_obs
-    
-            if done:
-                obs, _ = env.reset(seed=seed)
-        
-        print('Initialization with random transitions is done!')
-          
-    def add_data(self, data): 
-        '''
-        Params:
-        data = relevant data of a transition, i.e. action, new_obs, reward, done
-        '''
-        self.replay_buffer.append(data)
+        env = self.env
+        state = env.reset(random_startpoint=True)  # TODO: implement random startpoint
+        episode_reward = 0.0
+
+        for i in range(self.replay_size):
+
+            action = self.env.action_space.sample()
+            next_state, reward, terminated, _ = env.step(action)
+            transition = (state, action, reward, terminated, next_state)
+            self.replay_memory.append(transition)
+            state = next_state
+
+            episode_reward += reward
+
+            if terminated:
+                state = env.reset()
+                self.episode_rewards.append(episode_reward)
+                episode_reward = 0.0
+
+    def reset(self):
+        """
+        Resets the replay memory.
+        """
+        self.replay_memory = []
+        self.episode_rewards = []
             
     def sample(self, batch_size):
-        
-        '''
-        Params:
-        batch_size = number of transitions that will be sampled
-        
-        Returns:
-        tensor of observations, actions, rewards, done (boolean) and next observation 
-        '''
-        
-        transitions = random.sample(self.replay_buffer, batch_size)
 
-        #Solution
-        observations = np.asarray([t[0] for t in transitions])
-        actions = np.asarray([t[1] for t in transitions])
-        rewards = np.asarray([t[2] for t in transitions])
-        dones = np.asarray([t[3] for t in transitions])
-        new_observations = np.asarray([t[4] for t in transitions])
+        # sample random transitions from the replay memory
+        transitions = random.sample(self.replay_memory, batch_size)
 
-        #PyTorch needs these arrays as tensors!, don't forget to specify the device! (cpu / GPU)
+        # Solution
+        observations = [t[0] for t in transitions]
+        actions = [t[1] for t in transitions]
+        rewards = [t[2] for t in transitions]
+        dones = [t[3] for t in transitions]
+        new_observations = [t[4] for t in transitions]
+
+        # PyTorch needs these arrays as tensors!, don't forget to specify the device! (cpu / GPU)
         observations_t = torch.as_tensor(observations, dtype = torch.float32, device=self.device)
         actions_t = torch.as_tensor(actions, dtype = torch.int64, device=self.device).unsqueeze(-1)
         rewards_t = torch.as_tensor(rewards, dtype = torch.float32, device=self.device).unsqueeze(-1)
@@ -116,21 +110,12 @@ class ExperienceReplay:
         new_observations_t = torch.as_tensor(new_observations, dtype = torch.float32, device=self.device)
         
         return observations_t, actions_t, rewards_t, dones_t, new_observations_t
-    
-    def add_reward(self, reward):
-        
-        '''
-        Params:
-        reward = reward that the agent earned during an episode of a game
-        '''
-        
-        self.reward_buffer.append(reward)
-        
+
 
 class DDQNAgent:
     
-    def __init__(self, env_name, device, epsilon_decay, 
-                 epsilon_start, epsilon_end, discount_rate, lr, buffer_size, seed = 123):
+    def __init__(self, env, device, epsilon_decay,
+                 epsilon_start, epsilon_end, discount_rate, lr, buffer_size):
         '''
         Params:
         env = name of the environment that the agent needs to play
@@ -143,8 +128,7 @@ class DDQNAgent:
         buffer_size = max number of transitions that the experience replay buffer can store
         seed = seed for random number generator for reproducibility
         '''
-        self.env = env_name
-        #self.env = gym.make(self.env_name, render_mode = None)
+        self.env = env
         self.device = device
         self.epsilon_decay = epsilon_decay
         self.epsilon_start = epsilon_start
@@ -153,61 +137,37 @@ class DDQNAgent:
         self.learning_rate = lr
         self.buffer_size = buffer_size
         
-        self.replay_memory = ExperienceReplay(self.env, self.buffer_size, seed = seed)
+        self.replay_buffer = ExperienceReplay(self.env, self.buffer_size)
         self.online_network = DQN(self.env, self.learning_rate).to(self.device)
 
         self.target_network = DQN(self.env, self.learning_rate).to(self.device)
         self.target_network.load_state_dict(self.online_network.state_dict())
-        
-    def choose_action(self, observation , policy:str = 'epsilon_greedy'):
-        
-        '''
-        Params:
-        step = the specific step number 
-        observation = observation input
-        greedy = boolean that
-        
-        Returns:
-        action: action chosen (either random or greedy)
-        epsilon: the epsilon value that was used 
-        '''
-        
-        #epsilon = np.interp(step, [0, self.epsilon_decay], [self.epsilon_start, self.epsilon_end])
-        epsilon = 0.8
-        if policy == 'epsilon_greedy':
-            random_sample = random.random()
-    
-            if (random_sample <= epsilon) :
-            #Random action
-                return self.env.action_space.sample()
-        
-        if policy == 'greedy':
 
-            #Greedy action
-            obs_t = torch.as_tensor(observation, dtype = torch.float32, device=self.device)
-            q_values = self.online_network(obs_t.unsqueeze(0))
-        
-            max_q_index = torch.argmax(q_values, dim = 1)[0]
-            action = max_q_index.detach().item()
-        
-            return action
-    
-    
-    def return_q_value(self, observation):
-        '''
+    def training_loop(self, iterations):
+
+        """
         Params:
-        observation = input value of the state the agent is in
-        
+        env = name of the environment that the agent needs to play
+        agent= which agent is used to train
+        max_episodes = maximum number of games played
+        target = boolean variable indicating if a target network is used (this will be clear later)
+        seed = seed for random number generator for reproducibility
+
         Returns:
-        maximum q value 
-        '''
-        #We will need this function later for plotting the 3D graph
-        
-        obs_t = torch.as_tensor(observation, dtype = torch.float32, device=self.device)
-        q_values = self.online_network(obs_t.unsqueeze(0))
-        
-        return torch.max(q_values).item()
-        
+        average_reward_list = a list of averaged rewards over 100 episodes of playing the game
+        """
+
+        for iteration in tqdm(range(iterations)):
+
+            self.replay_buffer.reset()
+            self.replay_buffer.fill_replay_memory()
+
+            self.learn(batch_size=32)
+
+            if (iteration+1) % 100 == 0:
+
+                self.update_target_network()
+
     def learn(self, batch_size):
         
         '''
@@ -215,7 +175,7 @@ class DDQNAgent:
         batch_size = number of transitions that will be sampled
         '''
         
-        observations_t, actions_t, rewards_t, dones_t, new_observations_t = self.replay_memory.sample(batch_size)
+        observations_t, actions_t, rewards_t, dones_t, new_observations_t = self.replay_buffer.sample(batch_size)
 
         #Compute targets, note that we use the same neural network to do both! This will be changed later!
 
@@ -310,6 +270,19 @@ class DDQNAgent:
                     state, reward, terminated, *_ = val_env.step(action)
 
                 self.val_reward.append(val_env.episode_data.total_reward)
+
+    def choose_action(self, state, policy):
+        if policy == "random":
+            return self.env.action_space.sample()
+        elif policy == "greedy":
+            return self.online_network(state).argmax().item()
+        elif policy == "epsilon_greedy":
+            if random.random() < self.epsilon:
+                return self.env.action_space.sample()
+            else:
+                return self.online_network(state).argmax().item()
+        else:
+            raise ValueError("Unknown policy")
 
 
     def validate(
@@ -466,72 +439,3 @@ class DDQNAgent:
         plt.ylabel("V value")
         plt.show()
 
-
-def training_loop(self,  agent, max_episodes, target_ = False, seed=42):
-
-    '''
-    Params:
-    env = name of the environment that the agent needs to play
-    agent= which agent is used to train
-    max_episodes = maximum number of games played
-    target = boolean variable indicating if a target network is used (this will be clear later)
-    seed = seed for random number generator for reproducibility
-    
-    Returns:
-    average_reward_list = a list of averaged rewards over 100 episodes of playing the game
-    '''
-    env = self.env
-    #env = gym.make(env_name, render_mode = None)
-    env.action_space.seed(seed)
-    obs = env.reset(seed=seed)
-    average_reward_list = [-200]
-    episode_reward = 0.0
-    batch_size = 32
-    dagent = agent
-
-    
-    for step in range(max_episodes):
-        
-        action= self.choose_action(step, obs)
-    
-        new_obs, rew, terminated,  _ = env.step(action)
-        done = terminated       
-        transition = (obs, action, rew, done, new_obs)
-        self.replay_memory.add_data(transition)
-        obs = new_obs
-    
-        episode_reward += rew
-    
-        if done:
-        
-            obs, _ = env.reset(seed=seed)
-            self.replay_memory.add_reward(episode_reward)
-            #Reinitilize the reward to 0.0 after the game is over
-            episode_reward = 0.0
-
-        #Learn
-
-        self.learn(batch_size)
-
-        #Calculate after each 100 episodes an average that will be added to the list
-                
-        if (step+1) % 100 == 0:
-            average_reward_list.append(np.mean(self.replay_memory.reward_buffer))
-        
-        #Update target network, do not bother about it now!
-        if target_:
-            
-            #Set the target_update_frequency
-            target_update_frequency = 250
-            if step % target_update_frequency == 0:
-                self.update_target_network()
-    
-        #Print some output
-        if (step+1) % 10000 == 0:
-            print(20*'--')
-            print('Step', step)
-            #print('Epsilon', epsilon)
-            print('Avg Rew', np.mean(self.replay_memory.reward_buffer))
-            print()
-
-    return average_reward_list

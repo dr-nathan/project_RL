@@ -14,7 +14,7 @@ if __name__ == "__main__":
     #That is the sample that we consider to update our algorithm
     batch_size = 32
     #Maximum number of transitions that we store in the buffer
-    buffer_size = 50000
+    buffer_size = 1000
     #Minimum number of random transitions stored in the replay buffer
     min_replay_size = 1000
     #Starting value of epsilon
@@ -42,7 +42,7 @@ if __name__ == "__main__":
 
     # load the DQN agent
     dagent = DDQNAgent(
-        env_name=environment,
+        env=environment,
         device=device,
         epsilon_decay=epsilon_decay,
         epsilon_start=epsilon_start,
@@ -52,6 +52,8 @@ if __name__ == "__main__":
         buffer_size=buffer_size
     )
 
+
+
     # train parameters
     epsilon_decay = False
     epsilon = 0.8  # overriden if epsilon_decay is True
@@ -60,20 +62,19 @@ if __name__ == "__main__":
     random_startpoint = False
     start_amount = 0.5
 
-    dagent.train(
-        "epsilon_greedy",
-        n_episodes,
-        epsilon,
-        epsilon_decay,
-        alpha,
-        random_startpoint,
-        start_amount,
-        val_price_data=val_data
-    )
+    dagent.training_loop(10000)
+    # dagent.train(
+    #     "epsilon_greedy",
+    #     n_episodes,
+    #     epsilon,
+    #     epsilon_decay,
+    #     alpha,
+    #     random_startpoint,
+    #     start_amount,
+    #     val_price_data=val_data
+    # )
     
     #dagent.training_loop(environment,  max_episodes=n_episodes, target_ = True)
     
-    print(f"Total reward: {dagent.env.episode_data.total_reward}")
-    #agent.env.episode_data.plot()
-    dagent.env.episode_data.debug_plot()
+    dagent.validate(price_data=val_data)
  
