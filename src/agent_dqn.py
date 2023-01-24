@@ -23,44 +23,28 @@ from copy import deepcopy
 class DQN(nn.Module):
     
     def __init__(self, env, learning_rate):
-        
-        '''
-        Params:
-        env = environment that the agent needs to play
-        learning_rate = learning rate used in the update
-        
-        '''
-        
+
         super(DQN,self).__init__()
         input_features,*_ = env.observation_space.shape
         action_space = env.action_space.n
-        
-
         
         self.dense1 = nn.Linear(in_features = input_features, out_features = 128)
         self.dense2 = nn.Linear(in_features = 128, out_features = 64)
         self.dense3 = nn.Linear(in_features = 64, out_features = 32)
         self.dense4 = nn.Linear(in_features = 32, out_features = action_space)
         
-        #Here we use ADAM, but you could also think of other algorithms such as RMSprob
+        # Here we use ADAM, but you could also think of other algorithms such as RMSprob
         self.optimizer = optim.Adam(self.parameters(), lr = learning_rate)
         
     def forward(self, x):
-        
-        '''
-        Params:
-        x = observation
-        '''
- 
-        
-        #Solution:
+
+        # Solution:
         x = torch.tanh(self.dense1(x))
         x = torch.tanh(self.dense2(x))
         x = torch.tanh(self.dense3(x))
         x = self.dense4(x)
         
         return x
-    
 
 
 class ExperienceReplay:

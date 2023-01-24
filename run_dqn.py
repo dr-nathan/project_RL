@@ -3,7 +3,7 @@ from pathlib import Path
 from src.environment import ContinuousDamEnv, DiscreteContinuousDamEnv, DiscreteDamEnv
 from src.utils import convert_dataframe
 import torch
-from src.Agent_dqn import DDQNAgent
+from src.agent_dqn import DDQNAgent
 
 
 if __name__ == "__main__": 
