@@ -307,7 +307,7 @@ class ContinuousDamEnv(DamEnvBase):
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(7,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
 
         super().__init__(*args, **kwargs)
 
@@ -329,21 +329,24 @@ class ContinuousDamEnv(DamEnvBase):
             self._is_weekend(),
             self._mean_previous_day(),
             self._std_previous_day(),
+            self._volatility()
         )
     
     def _is_weekend(self):
         return self.current_date.weekday in [5,6]
 
     def _mean_previous_day(self):
-        self.current_price.rolling(window=24).mean()
+        return self.current_price.rolling(window=24).mean()
 
     def _std_previous_day(self):
-        self.current_price.rolling(window=24).std()
+        return self.current_price.rolling(window=24).std()
            
     def _is_winter(self):
         # November is actually not winter, but we generally see higher prices here too
         return self.current_date.month in [1, 2, 12, 11]
 
+    def _volatility(self):
+        return self.current_price.rolling(window=24).std()*np.sqrt(24)
 
 class DiscreteContinuousDamEnv(ContinuousDamEnv):  # NV: continuous states but discrete actions?
     def __init__(self, *args, **kwargs):
