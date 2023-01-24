@@ -320,3 +320,5 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_price / self.max_price,
             self.stored_energy / self.max_stored_energy,
         )
+
+    # TODO: normalize price?

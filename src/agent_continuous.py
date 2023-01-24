@@ -6,7 +6,6 @@ from collections import deque
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch import nn
@@ -271,12 +270,6 @@ class DDQNAgent:
         self.replay_memory = ExperienceReplay(self.env, self.buffer_size, seed=seed)
         self.online_network = DQN(self.env, self.learning_rate).to(self.device)
 
-        """
-        ToDo: Add here a target network and set the parameter values to the ones of the online network!
-        Hint: Use the method 'load_state_dict'!
-        """
-
-        # Solution:
         self.target_network = DQN(self.env, self.learning_rate).to(self.device)
         self.target_network.load_state_dict(self.online_network.state_dict())
 
