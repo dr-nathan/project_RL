@@ -68,23 +68,26 @@ class PolicyGradientAgent:
         policy_loss.backward()
         self.optimizer.step()
 
+        return policy_loss.item()
+
     def update_policy(self, batch):
         if torch.cuda.is_available():
             with torch.cuda.device(0):
-                self._update_policy(batch)
-            return
+                return self._update_policy(batch)
 
         # TODO: check if this works
         # CONCLUSION: Nope
         # if torch.backends.mps.is_available():
         #     with torch.backends.mps.device(0):
-        #         self._update_policy(batch)
-        #     return
+        #         return self._update_policy(batch)
 
-        self._update_policy(batch)
+        return self._update_policy(batch)
 
-    def train(self, n_episodes):
-        for _ in tqdm(range(n_episodes)):
+    def train(
+        self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 10
+    ):
+        pbar = tqdm(range(n_episodes))
+        for i in pbar:
             state = self.env.reset()
             terminated = False
 
@@ -103,7 +106,12 @@ class PolicyGradientAgent:
 
                 batch.append((mean, std, action, reward))
 
-            self.update_policy(batch)
+            loss = self.update_policy(batch)
+            reward = self.env.episode_data.total_reward
+            pbar.set_description(f"Loss: {loss:.4f}, Reward: {reward:.4f}")
+
+            if save_path is not None and i % save_frequency == 0:
+                self.save(save_path / f"{reward:.0f}.pt")
 
         return self.env.episode_data
 
@@ -139,6 +147,7 @@ class PolicyGradientAgent:
 
     def load(self, path: str | Path):
         self.policy_network.load_state_dict(torch.load(path))
+
 
 # SOURCE: https://github.com/nikhilbarhate99/PPO-PyTorch
 ################################## PPO Policy ##################################
