@@ -1,6 +1,7 @@
 import math
 from datetime import datetime
 from pathlib import Path
+import random
 
 import torch
 import torch.nn as nn
@@ -38,7 +39,9 @@ class PolicyNetwork(nn.Module):
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         mean = self.fc_mean(x)
-        std = torch.exp(self.fc_std(x))
+        std = self.fc_std(x)
+        std = torch.exp(std)
+        std = torch.clamp(std, min=0)  # std cannot be < 0
         return mean, std
 
 
@@ -49,21 +52,26 @@ class PolicyGradientAgent:
         self.action_size, *_ = env.action_space.shape
 
         self.policy_network = PolicyNetwork(self.state_size, self.action_size)
-        self.optimizer = torch.optim.Adam(
+        self.optimizer = torch.optim.Adamax(
             self.policy_network.parameters(), lr=learning_rate
         )
 
-    def _update_policy(self, batch):
+    def _update_policy(self, batch, sample_size: int = 1000):
+        # get total reward
+        rewards = torch.vstack([torch.tensor(e[3]) for e in batch])
+        returns = rewards.sum()
+
+        # sample actions from batch
+        batch = random.sample(batch, sample_size)
+
         # compute the probabilities of the actions taken under the current policy
         means = torch.stack([e[0] for e in batch])
         stds = torch.stack([e[1] for e in batch])
         actions = torch.stack([e[2] for e in batch])
-        rewards = torch.vstack([torch.tensor(e[3]) for e in batch])
 
-        log_probs = self._get_log_prob(means, stds, actions)
+        log_probs = torch.distributions.Normal(means, stds).log_prob(actions)
 
-        returns = log_probs * rewards.sum()
-        policy_loss = -returns.mean()
+        policy_loss = -(log_probs * returns).mean()
         self.optimizer.zero_grad()
         policy_loss.backward()
         self.optimizer.step()
@@ -97,9 +105,6 @@ class PolicyGradientAgent:
                 state_tensor = torch.tensor(state).float().unsqueeze(0)
                 mean, std = self.policy_network(state_tensor)
                 action = torch.normal(mean, std)
-                # clip the action to the action space
-                # TODO: check if this is actually necessary
-                action = torch.tanh(action)
 
                 next_state, reward, terminated, *_ = self.env.step(action.item())
                 state = next_state
@@ -118,8 +123,7 @@ class PolicyGradientAgent:
     def get_greedy_action(self, state):
         state = torch.tensor(state).float().unsqueeze(0)
         mean, _ = self.policy_network(state)
-        # TODO: check if tanh is actually necessary
-        return torch.tanh(mean).item()
+        return mean.item()
 
     def validate(self, price_data: dict[datetime, float]):
         state = self.env.reset(price_data=price_data)

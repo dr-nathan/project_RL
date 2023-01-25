@@ -20,7 +20,7 @@ if __name__ == "__main__":
     agent = PolicyGradientAgent(learning_rate=0.1, env=environment)
 
     # train agent
-    n_episodes = 200
+    n_episodes = 500
     random_startpoint = False
 
     # if file exists, agent
