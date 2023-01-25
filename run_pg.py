@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.agent_pg import PolicyGradientAgent
+from src.agent_pg import BasicPGAgent
 from src.environment import ContinuousDamEnv
 from src.utils import convert_dataframe
 
@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = ContinuousDamEnv(train_data)
-    agent = PolicyGradientAgent(learning_rate=0.1, env=environment)
+    agent = BasicPGAgent(learning_rate=0.1, env=environment)
 
     # train agent
     n_episodes = 500
