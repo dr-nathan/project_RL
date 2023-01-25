@@ -241,6 +241,7 @@ class DamEnvBase(gym.Env):
         # negative flow = buying
         return flow * self.buy_multiplier * self.current_price
 
+
     def _action_to_flow(self, action: int | float):
         raise NotImplementedError("Must be implemented in subclass")
 
@@ -307,7 +308,7 @@ class ContinuousDamEnv(DamEnvBase):
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(5,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
 
         super().__init__(*args, **kwargs)
 
@@ -327,27 +328,39 @@ class ContinuousDamEnv(DamEnvBase):
             self.stored_energy / self.max_stored_energy,
             self._is_winter(),
             self._is_weekend()
-            #self._mean_previous_day(),
-            #self._std_previous_day(),
-            #self._volatility()
+            self._mean_previous_day(24),
+            self._std_previous_day(24),
+            self._volatility(24)
         )
     
     def _is_weekend(self):
         return self.current_date.weekday in [5,6]
 
-    def _mean_previous_day(self):
-        return self.current_price.rolling(window=24).mean()
-
-    def _std_previous_day(self):
-        return self.current_price.rolling(window=24).std()
            
     def _is_winter(self):
         # November is actually not winter, but we generally see higher prices here too
         return self.current_date.month in [1, 2, 12, 11]
 
-    def _volatility(self):
-        return self.current_price.rolling(window=24).std()*np.sqrt(24)
 
+    def _mean_previous_day(self,window_size):
+        values = list(self.price_data.values())
+        ind = list(self.price_data).index(self.current_date)
+        roll_window = [values[ind-i] for i in range(window_size)]
+        return np.mean(roll_window)
+
+    def _std_previous_day(self,window_size):
+        values = list(self.price_data.values())
+        ind = list(self.price_data).index(self.current_date)
+        roll_window = [values[ind-i] for i in range(window_size)]
+        return np.std(roll_window)    
+
+    def volatility(self,window_size):
+        values = list(self.price_data.values())
+        ind = list(self.price_data).index(self.current_date)
+        roll_window = [values[ind-i] for i in range(window_size)]
+        return np.std(roll_window)*np.sqrt(window_size)
+
+        
 class DiscreteContinuousDamEnv(ContinuousDamEnv):  # NV: continuous states but discrete actions?
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
