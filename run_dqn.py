@@ -45,6 +45,8 @@ if __name__ == "__main__":
     n_episodes = 1000
 
     dagent.training_loop(n_episodes)
+
+    episode_data.debug_plot("Final training episode")
     
     episode_data = dagent.validate(price_data=val_data)
 
