@@ -13,7 +13,7 @@ from src.environment import DiscreteDamEnv
 
 
 class QLearnAgent:
-    def __init__(self, env: DiscreteDamEnv, discount_factor: float = 0.99):
+    def __init__(self, env: DiscreteDamEnv, discount_factor: float = 0.98):
         self.env = env
         self.discount_factor = discount_factor
 

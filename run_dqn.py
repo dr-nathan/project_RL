@@ -1,6 +1,6 @@
 import pandas as pd
 from pathlib import Path
-from src.environment import ContinuousDamEnv, DiscreteContinuousDamEnv, DiscreteDamEnv
+from src.environment import DiscreteContinuousDamEnv
 from src.utils import convert_dataframe
 import torch
 from src.agent_dqn import DDQNAgent
@@ -23,12 +23,16 @@ if __name__ == "__main__":
 
     # load the DQN agent
     discount_rate = 0.98
-    batch_size = 64
-    epsilon = 0.1
-    epsilon_start = 1.0
+    batch_size = 32
+
+    epsilon = 0.5  # overwritten if epsilon_decay is True
+    epsilon_start = 1
     epsilon_end = 0.05
-    epsilon_decay = 10000
-    lr = 5e-4
+    epsilon_decay = True
+
+    lr = 5e-3
+    n_episodes = 100000
+    buffer_size = 25000
 
     dagent = DDQNAgent(
         env=environment,
@@ -37,14 +41,15 @@ if __name__ == "__main__":
         epsilon_decay=epsilon_decay,
         epsilon_start=epsilon_start,
         epsilon_end=epsilon_end,
+        n_episodes=n_episodes,
         discount_rate=discount_rate,
         lr=lr,
-        buffer_size=len(train_data)
+        buffer_size=buffer_size
     )
 
-    n_episodes = 1000
+    episode_data = dagent.training_loop(batch_size)
 
-    dagent.training_loop(n_episodes)
+    episode_data.debug_plot("Final training episode")
     
     episode_data = dagent.validate(price_data=val_data)
 
