@@ -1,19 +1,16 @@
 import random
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal
+from typing import Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
-import seaborn as sns
-from gymnasium import spaces
 import numpy as np
 import pandas as pd
-from src.utils import cumsum, joule_to_mwh, add_range_prices, plt_col
+import seaborn as sns
+from gymnasium import spaces
 
-seed = 7
-np.random.seed(seed)
-random.seed(seed)
+from src.utils import cumsum, joule_to_mwh, plt_col
 
 
 @dataclass
@@ -28,6 +25,9 @@ class DamEpisodeData:
     reward: list[float] = field(default_factory=list)
     reward_cumulative = property(lambda self: cumsum(self.reward))
     total_reward = property(lambda self: sum(self.reward))
+
+    def __len__(self):
+        return len(self.date)
 
     def add(
         self,
@@ -123,6 +123,12 @@ class DamEnvBase(gym.Env):
 
         # self.action_space and self.observation_space must be set in subclasses
 
+        self.cur_obs = None
+        self.episode_len = 0
+
+    def __len__(self):
+        return len(self.price_data)
+
     def reset(
         self,
         *,
@@ -148,6 +154,7 @@ class DamEnvBase(gym.Env):
 
         self.current_date = min(self.price_data.keys())
         self.current_price = self.price_data[self.current_date]
+        self.price_history = [self.current_price]
 
         self.terminated = False
         self.episode_data = DamEpisodeData()
@@ -158,7 +165,10 @@ class DamEnvBase(gym.Env):
         if random_startpoint:
             return self._pick_random_startpoint()
 
-        return self._get_state()
+        self.cur_obs = self._get_state()
+        self.episode_len = 0
+
+        return self.cur_obs, {}
 
     def _pick_random_startpoint(self):
         """Pick a random state to start from"""
@@ -191,6 +201,7 @@ class DamEnvBase(gym.Env):
 
         # move to the next hour
         self._set_next_state()
+        self.cur_obs = self._get_state()
 
         # store episode data
         self.episode_data.add(
@@ -202,12 +213,15 @@ class DamEnvBase(gym.Env):
             reward,
         )
 
+        self.price_history.append(self.current_price)
+
         # observation, reward, terminated, info (Gym convention)
         return (
-            self._get_state(),
-            reward,
-            self.terminated,
-            {},
+            self.cur_obs,  # state
+            reward,  # reward
+            self.terminated,  # terminated
+            False,  # truncated
+            {},  # info
         )
 
     def _apply_constrained_flow_rate(self, flow_rate: float):
@@ -274,7 +288,7 @@ class DiscreteDamEnv(DamEnvBase):
             [24, self.n_bins_price, self.n_bins_reservoir]
         )
 
-    def _action_to_flow(self, action: int):
+    def _action_to_flow(self, action: int | float):
         # empty reservor / sell
         if action == 1:
             return self.max_flow_rate
@@ -310,8 +324,8 @@ class ContinuousDamEnv(DamEnvBase):
         # action is the flow rate
         self.action_space = spaces.Box(low=-1, high=1)
 
-        # state is (hour, electricity price, stored energy, is winter, is weekend)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(5,))
+        # state is (hour, electricity price, stored energy, is_winter, is_weekend)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
 
         super().__init__(*args, **kwargs)
 
@@ -330,29 +344,33 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_price / 200,  # self.max_price
             self.stored_energy / self.max_stored_energy,
             self._is_winter(),
-            self._is_weekend()
-            #self._mean_previous_day(),
-            #self._std_previous_day(),
-            #self._volatility()
+            self._is_weekend(),
+            self._mean_window(24),
+            self._std_window(24),
+            self._volatility_window(24),
         )
-    
+
     def _is_weekend(self):
-        return self.current_date.weekday in [5,6]
+        return self.current_date.weekday in [5, 6]
 
-    def _mean_previous_day(self):
-        return self.current_price.rolling(window=24).mean()
-
-    def _std_previous_day(self):
-        return self.current_price.rolling(window=24).std()
-           
     def _is_winter(self):
         # November is actually not winter, but we generally see higher prices here too
         return self.current_date.month in [1, 2, 12, 11]
 
-    def _volatility(self):
-        return self.current_price.rolling(window=24).std()*np.sqrt(24)
+    def _mean_window(self, window_size):
+        window = self.price_history[-window_size:]
+        return sum(window) / len(window)
 
-class DiscreteContinuousDamEnv(ContinuousDamEnv):  # NV: continuous states but discrete actions?
+    def _std_window(self, window_size):
+        window = self.price_history[-window_size:]
+        return np.std(window)
+
+    def _volatility_window(self, window_size):
+        std = self._std_window(window_size)
+        return std * np.sqrt(window_size)
+
+
+class DiscreteContinuousDamEnv(ContinuousDamEnv):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
