@@ -17,7 +17,7 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = ContinuousDamEnv(train_data)
-    agent = PPOAgent(learning_rate=0.01, env=environment, clip_epsilon=0.2)
+    agent = PPOAgent(learning_rate=0.001, env=environment, clip_epsilon=0.6)
 
     # train agent
     n_episodes = 1

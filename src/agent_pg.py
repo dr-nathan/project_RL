@@ -21,7 +21,7 @@ DEVICE = torch.device(
 # it's generally actually not beneficial to use a GPU for this, as steps are not taken in parallel
 # so single-core performance is more important. during backpropagation a GPU can be faster, but the
 # overhead of copying data to and from the GPU is not worth it
-# DEVICE = torch.device("cpu")
+DEVICE = torch.device("cpu")
 
 print(f"{DEVICE = }")
 
@@ -160,24 +160,23 @@ class PPOAgent:
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
 
-        self.policy_network = BasicPGNetwork(self.state_size, self.action_size).to(
-            DEVICE
-        )
-        self.optimizer = torch.optim.Adam(
+        self.policy_network = BasicPGNetwork(self.state_size, self.action_size).to(DEVICE)
+        # TODO: check if AdamW is required
+        self.optimizer = torch.optim.AdamW(
             self.policy_network.parameters(), lr=learning_rate
         )
         self.clip_epsilon = clip_epsilon
         self.old_policy_network = deepcopy(self.policy_network)
 
     def get_action(self, state):
-        state = torch.tensor(state).float().unsqueeze(0)
+        state = torch.tensor(state, device=DEVICE).float().unsqueeze(0)
         mean, std = self.policy_network(state)
         dist = torch.distributions.Normal(mean, std)
         action = dist.sample()
         log_probs = dist.log_prob(action)
         return action.item(), log_probs, dist.entropy()
 
-    def _update_policy(self, states, actions, rewards, old_log_probs, entropy):
+    def update_policy(self, states, actions, rewards, old_log_probs, entropy):
         for _ in range(5):
             mean, std = self.policy_network(states)
             dist = torch.distributions.Normal(mean, std)
@@ -191,16 +190,9 @@ class PPOAgent:
             policy_loss = -torch.min(surr1, surr2).mean() - 0.001 * entropy.mean()
             self.optimizer.zero_grad()
             policy_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5)
+            torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5, error_if_nonfinite=True)
             self.optimizer.step()
             self.old_policy_network.load_state_dict(self.policy_network.state_dict())
-
-    def update_policy(self, *args, **kwargs):
-        if torch.cuda.is_available():
-            with torch.cuda.device(0):
-                return self._update_policy(*args, **kwargs)
-
-        return self._update_policy(*args, **kwargs)
 
     def train(
         self, n_episodes, save_path: None | Path = None, save_frequency: int = 10
@@ -225,11 +217,11 @@ class PPOAgent:
                 entropies.append(entropy)
                 state = next_state
 
-            states_tensor = torch.tensor(states).float()
-            actions_tensor = torch.tensor(actions).float().unsqueeze(1)
-            rewards_tensor = torch.tensor(rewards).float()
-            old_log_probs_tensor = torch.tensor(old_log_probs).float()
-            entropies_tensor = torch.tensor(entropies).float()
+            states_tensor = torch.tensor(states, device=DEVICE).float()
+            actions_tensor = torch.tensor(actions, device=DEVICE).float().unsqueeze(1)
+            rewards_tensor = torch.tensor(rewards, device=DEVICE).float()
+            old_log_probs_tensor = torch.tensor(old_log_probs, device=DEVICE).float()
+            entropies_tensor = torch.tensor(entropies, device=DEVICE).float()
             self.update_policy(states_tensor, actions_tensor, rewards_tensor, old_log_probs_tensor, entropies_tensor)
 
             reward = self.env.episode_data.total_reward
