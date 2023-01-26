@@ -24,14 +24,14 @@ if __name__ == "__main__":
     random_startpoint = False
 
     # if file exists, agent
-    filepath = Path(__file__).parent / "PG" / "model.pt"
+    filepath = Path(__file__).parent / "PPO" / "model.pt"
     filepath.parent.mkdir(parents=True, exist_ok=True)
     if filepath.exists():
         agent.load(filepath)
         print("Loaded agent from file")
 
-    episode_data = agent.train(n_episodes)
-    # episode_data = agent.train(n_episodes, filepath.parent)
+    # episode_data = agent.train(n_episodes)
+    episode_data = agent.train(n_episodes, filepath.parent)
 
     # save agent
     # agent.save(filepath)

@@ -202,8 +202,11 @@ class PPOAgent:
 
         return self._update_policy(*args, **kwargs)
 
-    def train(self, n_episodes):
-        for _ in tqdm(range(n_episodes)):
+    def train(
+        self, n_episodes, save_path: None | Path = None, save_frequency: int = 10
+    ):
+        pbar = tqdm(range(n_episodes))
+        for i in pbar:
             state, _ = self.env.reset()
             terminated = False
             states = []
@@ -222,9 +225,21 @@ class PPOAgent:
                 entropies.append(entropy)
                 state = next_state
 
-            states = torch.tensor(states).float()
-            actions = torch.tensor(actions).float().unsqueeze(1)
-            rewards = torch.tensor(rewards).float()
-            old_log_probs = torch.tensor(old_log_probs).float()
-            entropies = torch.tensor(entropies).float()
-            self.update_policy(states, actions, rewards, old_log_probs, entropies)
+            states_tensor = torch.tensor(states).float()
+            actions_tensor = torch.tensor(actions).float().unsqueeze(1)
+            rewards_tensor = torch.tensor(rewards).float()
+            old_log_probs_tensor = torch.tensor(old_log_probs).float()
+            entropies_tensor = torch.tensor(entropies).float()
+            self.update_policy(states_tensor, actions_tensor, rewards_tensor, old_log_probs_tensor, entropies_tensor)
+
+            reward = self.env.episode_data.total_reward
+            pbar.set_description(f"Reward: {reward:.4f}")
+
+            if save_path is not None and i % save_frequency == 0:
+                self.save(save_path / f"{reward:.0f}.pt")
+
+    def save(self, path: str | Path):
+        torch.save(self.policy_network.state_dict(), path)
+
+    def load(self, path: str | Path):
+        self.policy_network.load_state_dict(torch.load(path))
