@@ -372,9 +372,11 @@ class ContinuousDamEnv(DamEnvBase):
 
 class DiscreteContinuousDamEnv(ContinuousDamEnv):
     def __init__(self, *args, **kwargs):
+
         super().__init__(*args, **kwargs)
 
         self.action_space = gym.spaces.Discrete(3)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(3,))
 
     def _action_to_flow(self, action: int):
         # empty reservor / sell
@@ -387,3 +389,13 @@ class DiscreteContinuousDamEnv(ContinuousDamEnv):
 
         # do nothing, i.e. action == 0 (default)
         return 0.0
+
+    def _get_state(self):
+        return (
+            self.current_date.hour / 24,
+            self.current_price / 200,  # self.max_price
+            self.stored_energy / self.max_stored_energy
+            #self._is_winter(),
+            #self._is_weekend()
+        )
+

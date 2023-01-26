@@ -68,18 +68,18 @@ class ExperienceReplay:
         Fills the replay memory with random transitions.
         """
 
-        state = self.env.reset()
+        state, _ = self.env.reset()
 
         for i in range(self.min_replay_size):
 
             action = agent.choose_action(state, policy='epsilon_greedy')
-            next_state, reward, terminated, _ = self.env.step(action)
+            next_state, reward, terminated, _, _ = self.env.step(action)
             transition = (state, action, reward, terminated, next_state)
             self.replay_buffer.append(transition)
             state = next_state
 
             if terminated:
-                state = self.env.reset()
+                state, _ = self.env.reset()
             
     def sample(self, batch_size):
 
@@ -155,7 +155,7 @@ class DDQNAgent:
         for iteration in tqdm(range(self.n_episodes)):
 
             # reset the environment
-            state = self.env.reset()
+            state, _ = self.env.reset()
 
             # play the game, add the transition to the replay memory
             self.play(state, batch_size=batch_size)
@@ -221,12 +221,12 @@ class DDQNAgent:
 
         for i in range(batch_size):
             action = self.choose_action(state, "epsilon_greedy")
-            next_state, reward, terminated, *_ = self.env.step(action)
+            next_state, reward, terminated, _, *_ = self.env.step(action)
             self.replay_memory.replay_buffer.append((state, action, reward, terminated, next_state))
             state = next_state
 
             if terminated:
-                state = self.env.reset()
+                state, _ = self.env.reset()
 
     def validate(
         self,
@@ -235,7 +235,7 @@ class DDQNAgent:
         start_amount: float = 0.5,
     ):
         # reset environment
-        state = self.env.reset(
+        state, _ = self.env.reset(
             price_data=price_data,
             random_startpoint=random_startpoint,
             start_amount=start_amount,
@@ -245,7 +245,7 @@ class DDQNAgent:
         terminated = False
         while not terminated:
             action = self.choose_action(state, "greedy")
-            next_state, _, terminated, *_ = self.env.step(action)
+            next_state, _, terminated, _, *_ = self.env.step(action)
             state = next_state
 
         return self.env.episode_data  
