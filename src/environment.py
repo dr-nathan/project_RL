@@ -11,6 +11,10 @@ import numpy as np
 import pandas as pd
 from src.utils import cumsum, joule_to_mwh, add_range_prices, plt_col
 
+seed = 7
+np.random.seed(seed)
+random.seed(seed)
+
 
 @dataclass
 class DamEpisodeData:
@@ -102,7 +106,7 @@ class DamEnvBase(gym.Env):
     # static properties
     max_stored_energy = joule_to_mwh(
         100000 * 1000 * 9.81 * 30
-    )  # 100000 m^3 to mwh with U = mgh
+    )  # 100000 m^3 to mwh with U = mgh, m = 1000 kg/m^3
     min_stored_energy = 0
     # a positive flow means emtpying the reservoir
     max_flow_rate = joule_to_mwh(5 * 1000 * 3600 * 9.81 * 30)  # 5 m^3/s to mwh
@@ -306,7 +310,7 @@ class ContinuousDamEnv(DamEnvBase):
         # action is the flow rate
         self.action_space = spaces.Box(low=-1, high=1)
 
-        # state is (hour, electricity price, stored energy)
+        # state is (hour, electricity price, stored energy, is winter, is weekend)
         self.observation_space = spaces.Box(low=0, high=1, shape=(5,))
 
         super().__init__(*args, **kwargs)
@@ -323,7 +327,7 @@ class ContinuousDamEnv(DamEnvBase):
     def _get_state(self):
         return (
             self.current_date.hour / 24,
-            self.current_price / self.max_price,
+            self.current_price / 200,  # self.max_price
             self.stored_energy / self.max_stored_energy,
             self._is_winter(),
             self._is_weekend()
