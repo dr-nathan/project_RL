@@ -380,7 +380,6 @@ class ContinuousDamEnv(DamEnvBase):
         return lstm.predict(window_size,future,window)
 
 
-
 class DiscreteContinuousDamEnv(ContinuousDamEnv):
     def __init__(self, *args, **kwargs):
 

@@ -24,9 +24,9 @@ class DQN(nn.Module):
         input_features, *_ = env.observation_space.shape
         action_space = env.action_space.n
         
-        self.dense1 = nn.Linear(in_features=input_features, out_features=64)
+        self.dense1 = nn.Linear(in_features=input_features, out_features=32)
         # self.dense2 = nn.Linear(in_features=128, out_features=64)
-        self.dense3 = nn.Linear(in_features=64, out_features=32)
+        # self.dense3 = nn.Linear(in_features=64, out_features=32)
         self.dense4 = nn.Linear(in_features=32, out_features=action_space)
         
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
@@ -36,7 +36,7 @@ class DQN(nn.Module):
 
         x = torch.relu(self.dense1(x))
         # x = torch.relu(self.dense2(x))
-        x = torch.relu(self.dense3(x))
+        # x = torch.relu(self.dense3(x))
         x = self.dense4(x)
         
         return x

@@ -1,5 +1,5 @@
 from turtle import forward
-from attr import dataclass
+# from attr import dataclass
 import pandas as pd
 import numpy as np
 from src.utils import *
@@ -195,11 +195,8 @@ class LSTM_price():
         return preds[-1]      
 
 
-    
+if __name__ == "__main__":
+    lstm = LSTM_price()
+    a = lstm.predict(24,1,[0.22,0.44,0.22,0.77])
 
-
-
-lstm = LSTM_price()
-a = lstm.predict(24,1,[0.22,0.44,0.22,0.77])
-
-print(a)
+    print(a)
