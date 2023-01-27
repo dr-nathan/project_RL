@@ -132,7 +132,7 @@ class DamEnvBase(gym.Env):
     def reset(
         self,
         *,
-        seed: int | None = None,
+        seed: int | None = 7,
         start_amount: float | Literal["random"] = 0.5,
         random_startpoint: bool = False,
         price_data: dict[datetime, float] | None = None,
@@ -345,9 +345,9 @@ class ContinuousDamEnv(DamEnvBase):
             self.stored_energy / self.max_stored_energy,
             self._is_winter(),
             self._is_weekend(),
-            self._mean_window(24),
-            self._std_window(24),
-            self._volatility_window(24),
+            self._mean_window(24) / 200,
+            self._cov_window(24),
+            self._volatility_window(24)
         )
 
     def _is_weekend(self):
@@ -361,9 +361,13 @@ class ContinuousDamEnv(DamEnvBase):
         window = self.price_history[-window_size:]
         return sum(window) / len(window)
 
+    def _cov_window(self, window_size):
+        window = self.price_history[-window_size:]
+        return np.std(window) / np.mean(window)
+
     def _std_window(self, window_size):
         window = self.price_history[-window_size:]
-        return np.std(window)
+        return np.std(window) / np.mean(window)
 
     def _volatility_window(self, window_size):
         std = self._std_window(window_size)
@@ -376,7 +380,6 @@ class DiscreteContinuousDamEnv(ContinuousDamEnv):
         super().__init__(*args, **kwargs)
 
         self.action_space = gym.spaces.Discrete(3)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(3,))
 
     def _action_to_flow(self, action: int):
         # empty reservor / sell
@@ -389,13 +392,4 @@ class DiscreteContinuousDamEnv(ContinuousDamEnv):
 
         # do nothing, i.e. action == 0 (default)
         return 0.0
-
-    def _get_state(self):
-        return (
-            self.current_date.hour / 24,
-            self.current_price / 200,  # self.max_price
-            self.stored_energy / self.max_stored_energy
-            #self._is_winter(),
-            #self._is_weekend()
-        )
 
