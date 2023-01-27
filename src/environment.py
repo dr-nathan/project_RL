@@ -11,6 +11,7 @@ import seaborn as sns
 from gymnasium import spaces
 
 from src.utils import cumsum, joule_to_mwh, plt_col
+from src.lstm import LSTM_price
 
 
 @dataclass
@@ -367,11 +368,17 @@ class ContinuousDamEnv(DamEnvBase):
 
     def _std_window(self, window_size):
         window = self.price_history[-window_size:]
-        return np.std(window) / np.mean(window)
+        return np.std(window)
 
     def _volatility_window(self, window_size):
         std = self._std_window(window_size)
         return std * np.sqrt(window_size)
+
+    def _lstm_predict_next(self,window_size,future) :
+        lstm = LSTM_price()
+        window = self.price_history[-window_size:]
+        return lstm.predict(window_size,future,window)
+
 
 
 class DiscreteContinuousDamEnv(ContinuousDamEnv):
