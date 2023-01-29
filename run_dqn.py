@@ -27,12 +27,12 @@ if __name__ == "__main__":
 
     epsilon = 0.5  # overwritten if epsilon_decay is True
     epsilon_start = 1
-    epsilon_end = 0.05
+    epsilon_end = 0.1
     epsilon_decay = True
 
-    lr = 5e-3
-    n_episodes = 100000
-    buffer_size = 25000
+    lr = 5e-4
+    n_episodes = int(20 * len(environment))  # number is how many times you run throuh the whole dataset
+    buffer_size = len(environment)
 
     dagent = DDQNAgent(
         env=environment,
@@ -44,14 +44,16 @@ if __name__ == "__main__":
         n_episodes=n_episodes,
         discount_rate=discount_rate,
         lr=lr,
-        buffer_size=buffer_size
+        buffer_size=buffer_size,
+        seed=7
     )
 
-    episode_data = dagent.training_loop(batch_size)
+    episode_data = dagent.training_loop(batch_size, price_data_val=val_data)
 
     episode_data.debug_plot("Final training episode")
     
     episode_data = dagent.validate(price_data=val_data)
 
     episode_data.debug_plot("Validation episode")
+    print(f"total val reward: {episode_data.total_reward}")
  
