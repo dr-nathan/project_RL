@@ -221,7 +221,10 @@ class PPOAgent:
             # TODO: minibatching?
             batch_states = states[batch_indexes]
             batch_actions = actions[batch_indexes]
-            batch_rewards = rewards[batch_indexes]
+            batch_rewards = torch.tensor(
+                discounted_reward(rewards[batch_indexes].detach().cpu(), self.discount_factor),
+                device=DEVICE,
+            )
             batch_old_log_probs = old_log_probs[batch_indexes]
             batch_entropy = entropy[batch_indexes]
 
@@ -250,6 +253,7 @@ class PPOAgent:
     ):
         self._pbar = tqdm(range(n_episodes))
         for i in self._pbar:
+
             state, _ = self.env.reset()
             terminated = False
             states = []
@@ -271,7 +275,7 @@ class PPOAgent:
 
             states_tensor = torch.tensor(states, device=DEVICE).float()
             actions_tensor = torch.tensor(actions, device=DEVICE).float().unsqueeze(1)
-            rewards_tensor = torch.tensor(discounted_reward(rewards, self.discount_factor), device=DEVICE).float()
+            rewards_tensor = torch.tensor(rewards, device=DEVICE).float()
             old_log_probs_tensor = torch.tensor(old_log_probs, device=DEVICE).float()
             entropies_tensor = torch.tensor(entropies, device=DEVICE).float()
 
