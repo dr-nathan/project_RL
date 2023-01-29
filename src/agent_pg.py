@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import math
 import random
 from copy import deepcopy
@@ -9,6 +10,7 @@ from torch import nn
 from tqdm import tqdm
 
 from src.environment import ContinuousDamEnv
+from src.utils import discounted_reward
 
 DEVICE = torch.device(
     "cuda"
@@ -21,7 +23,7 @@ DEVICE = torch.device(
 # it's generally actually not beneficial to use a GPU for this, as steps are not taken in parallel
 # so single-core performance is more important. during backpropagation a GPU can be faster, but the
 # overhead of copying data to and from the GPU is not worth it
-DEVICE = torch.device("cpu")
+# DEVICE = torch.device("cpu")
 
 print(f"{DEVICE = }")
 
@@ -55,7 +57,7 @@ class BasicPGAgent:
             self.policy_network.parameters(), lr=learning_rate
         )
 
-    def _update_policy(self, batch, sample_size: int = 1000):
+    def update_policy(self, batch, sample_size: int = 1000):
         # get total reward
         rewards = torch.vstack([torch.tensor(e[3]) for e in batch])
         returns = rewards.sum()
@@ -76,19 +78,6 @@ class BasicPGAgent:
         self.optimizer.step()
 
         return policy_loss.item()
-
-    def update_policy(self, batch):
-        if torch.cuda.is_available():
-            with torch.cuda.device(0):
-                return self._update_policy(batch)
-
-        # TODO: check if this works
-        # CONCLUSION: Nope
-        # if torch.backends.mps.is_available():
-        #     with torch.backends.mps.device(0):
-        #         return self._update_policy(batch)
-
-        return self._update_policy(batch)
 
     def train(
         self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 10
@@ -154,51 +143,113 @@ class BasicPGAgent:
 
 class PPOAgent:
     def __init__(
-        self, learning_rate: float, env: ContinuousDamEnv, clip_epsilon: float
+        self,
+        env: ContinuousDamEnv,
+        learning_rate: float = 2.5e-4,
+        clip_epsilon: float = 0.2,
+        epochs: int = 10,
+        batches: int = 10,
+        discount_factor: float = 0.98,
+        entropy_loss_coeff: float = 0.01,
     ):
         self.env = env
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
 
-        self.policy_network = BasicPGNetwork(self.state_size, self.action_size).to(DEVICE)
+        self.policy_network = BasicPGNetwork(self.state_size, self.action_size)
+
+        # training parameters
         # TODO: check if AdamW is required
-        self.optimizer = torch.optim.AdamW(
+        self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate
         )
         self.clip_epsilon = clip_epsilon
-        self.old_policy_network = deepcopy(self.policy_network)
+        self.epochs = epochs
+        self.batches = batches
+        self.discount_factor = discount_factor
+        self.entropy_loss_coeff = entropy_loss_coeff
+
+        self.batch_size = len(env) // self.batches
 
     def get_action(self, state):
-        state = torch.tensor(state, device=DEVICE).float().unsqueeze(0)
-        mean, std = self.policy_network(state)
-        dist = torch.distributions.Normal(mean, std)
-        action = dist.sample()
-        log_probs = dist.log_prob(action)
+        with torch.no_grad():
+            state = torch.tensor(state).float().unsqueeze(0)
+            mean, std = self.policy_network(state)
+            dist = torch.distributions.Normal(mean, std)
+            action = dist.sample()
+            log_probs = dist.log_prob(action)
+
         return action.item(), log_probs, dist.entropy()
 
-    def update_policy(self, states, actions, rewards, old_log_probs, entropy):
-        for _ in range(5):
-            mean, std = self.policy_network(states)
-            dist = torch.distributions.Normal(mean, std)
-            new_log_probs = dist.log_prob(actions)
-            ratio = torch.exp(new_log_probs - old_log_probs)
-            surr1 = ratio * rewards
-            surr2 = (
-                torch.clamp(ratio, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
-                * rewards
+    def calculate_loss(self, states, actions, rewards, old_log_probs, entropy):
+        # action log probs ratio
+        means, stds = self.policy_network(states)
+        dist = torch.distributions.Normal(means, stds)
+        log_probs = dist.log_prob(actions)
+        ratios = torch.exp(log_probs - old_log_probs)
+
+        # advantage
+        advantages = rewards - rewards.mean()
+        advantages = (advantages - advantages.mean()) / advantages.std()
+
+        # surrogates
+        surr1 = ratios * advantages
+        surr2 = (
+            torch.clamp(ratios, 1 - self.clip_epsilon, 1 + self.clip_epsilon)
+            * advantages
+        )
+
+        # loss
+        policy_loss = -torch.min(surr1, surr2).mean()
+        entropy_loss = entropy.mean()
+        loss = policy_loss + self.entropy_loss_coeff * entropy_loss
+
+        return loss
+
+    def update_policy(
+        self,
+        states,
+        actions,
+        rewards,
+        old_log_probs,
+        entropy,
+    ):
+        for _ in range(self.epochs):
+            indexes = torch.randperm(self.batch_size)
+            batch_indexes = indexes[0 : self.batch_size]
+
+            # TODO: minibatching?
+            batch_states = states[batch_indexes]
+            batch_actions = actions[batch_indexes]
+            batch_rewards = rewards[batch_indexes]
+            batch_old_log_probs = old_log_probs[batch_indexes]
+            batch_entropy = entropy[batch_indexes]
+
+            self.policy_network = self.policy_network.to(DEVICE)
+
+            loss = self.calculate_loss(
+                batch_states,
+                batch_actions,
+                batch_rewards,
+                batch_old_log_probs,
+                batch_entropy,
             )
-            policy_loss = -torch.min(surr1, surr2).mean() - 0.001 * entropy.mean()
             self.optimizer.zero_grad()
-            policy_loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5, error_if_nonfinite=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(
+                self.policy_network.parameters(), max_norm=0.5, error_if_nonfinite=True
+            )
             self.optimizer.step()
-            self.old_policy_network.load_state_dict(self.policy_network.state_dict())
+            self._pbar.set_description(f"Loss: {loss.item():.4f}")
 
     def train(
-        self, n_episodes, save_path: None | Path = None, save_frequency: int = 10
+        self,
+        n_episodes: int,
+        save_path: None | Path = None,
+        save_frequency: int = 10,
     ):
-        pbar = tqdm(range(n_episodes))
-        for i in pbar:
+        self._pbar = tqdm(range(n_episodes))
+        for i in self._pbar:
             state, _ = self.env.reset()
             terminated = False
             states = []
@@ -206,6 +257,7 @@ class PPOAgent:
             rewards = []
             old_log_probs = []
             entropies = []
+            self.policy_network = self.policy_network.cpu()
 
             while not terminated:
                 action, log_probs, entropy = self.get_action(state)
@@ -219,16 +271,33 @@ class PPOAgent:
 
             states_tensor = torch.tensor(states, device=DEVICE).float()
             actions_tensor = torch.tensor(actions, device=DEVICE).float().unsqueeze(1)
-            rewards_tensor = torch.tensor(rewards, device=DEVICE).float()
+            rewards_tensor = torch.tensor(discounted_reward(rewards, self.discount_factor), device=DEVICE).float()
             old_log_probs_tensor = torch.tensor(old_log_probs, device=DEVICE).float()
             entropies_tensor = torch.tensor(entropies, device=DEVICE).float()
-            self.update_policy(states_tensor, actions_tensor, rewards_tensor, old_log_probs_tensor, entropies_tensor)
+
+            self.update_policy(
+                states_tensor,
+                actions_tensor,
+                rewards_tensor,
+                old_log_probs_tensor,
+                entropies_tensor,
+            )
 
             reward = self.env.episode_data.total_reward
-            pbar.set_description(f"Reward: {reward:.4f}")
 
             if save_path is not None and i % save_frequency == 0:
                 self.save(save_path / f"{reward:.0f}.pt")
+
+    def validate(self, price_data: dict[datetime, float]):
+        state, _ = self.env.reset(price_data=price_data)
+        terminated = False
+
+        while not terminated:
+            action, *_ = self.get_action(state)
+            next_state, _, terminated, *_ = self.env.step(action)
+            state = next_state
+
+        return self.env.episode_data
 
     def save(self, path: str | Path):
         torch.save(self.policy_network.state_dict(), path)

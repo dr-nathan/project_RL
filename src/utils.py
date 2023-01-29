@@ -68,3 +68,13 @@ def plt_col(lst):
         else:
             cols.append("red")
     return cols
+
+def discounted_reward(rewards:list[float], gamma:float):
+    discounted_rewards = np.zeros_like(rewards)
+    running_add = 0.0
+
+    for t in reversed(range(len(rewards))):
+        running_add = running_add * gamma + rewards[t]
+        discounted_rewards[t] = running_add
+
+    return discounted_rewards
