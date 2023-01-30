@@ -6,7 +6,7 @@ from src.agent_dqn import DDQNAgent
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_file', type=str, default='data/train.xlsx')  # Path to the excel file with the train data
 parser.add_argument('--val_file', type=str, default='data/validate.xlsx')  # Path to the excel file with the validation
-parser.add_argument('--validation', type=bool, default=False)  # If true, the model will be validated on the validation
+parser.add_argument('--train', type=bool, default=False)  # If false, the model will only be validated
 args = parser.parse_args()
 
 env = HydroElectric_Test(path_to_test_data=args.train_file)
@@ -19,9 +19,10 @@ epsilon = 0.5  # overwritten if epsilon_decay is True
 epsilon_start = 0.9
 epsilon_end = 0.05
 epsilon_decay = True
-lr = 5e-3
-n_episodes = int(10 * len(env.test_data))  # number is how many times you run throuh the whole dataset
-buffer_size = len(env.test_data)
+lr = 5e-4
+env.len = env.price_values.shape[0] * env.price_values.shape[1]
+n_episodes = int(20 * env.len)  # number is how many times you run throuh the whole dataset
+buffer_size = env.len
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7
 
@@ -40,17 +41,9 @@ dagent = DDQNAgent(
     seed=seed_value
 )
 
-if not args.validation:
-    episode_data = dagent.training_loop(batch_size)
+if not args.train:
+    dagent.training_loop(batch_size)
 
-    # episode_data.debug_plot("Final training episode")
+total_reward = dagent.validate(val_env)
 
-episode_data = dagent.validate()
-
-episode_data.debug_plot("Validation episode")
-print(f"total val reward: {episode_data.total_reward}")
-
-
-
-
-
+print(f'Total reward: {total_reward}')

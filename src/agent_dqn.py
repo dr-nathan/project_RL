@@ -1,22 +1,30 @@
 import copy
 from collections import deque
+from dataclasses import dataclass, field
+import datetime
+
 import numpy as np
+import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
+import seaborn as sns
 import torch 
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
+import torch.nn.functional as f
 import random
+
+from src.utils import cumsum, plt_col
 
 
 class DQN(nn.Module):
     
-    def __init__(self, env, learning_rate, seed):
+    def __init__(self, env, learning_rate, seed, agent):
 
         super().__init__()
         self.seed = torch.manual_seed(seed)
-        input_features, *_ = env.state.shape
+        # NV: allows to automatically get the input features selected by agent
+        input_features, *_ = agent.augment_state(env.state).shape
         action_space = env.discrete_action_space.n
         
         self.dense1 = nn.Linear(in_features=input_features, out_features=32)
@@ -49,45 +57,48 @@ class ExperienceReplay:
         seed = seed for random number generator for reproducibility
         """
         self.agent = agent
+        self.seed = seed
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.min_replay_size = min_replay_size
         self.replay_buffer = deque(maxlen=buffer_size)
         self.reward_buffer = deque([0], maxlen=100)  # total episode rewards
 
-        self.fill_replay_memory(agent)
+        self.fill_replay_memory()
 
-    def fill_replay_memory(self, agent):
+    def fill_replay_memory(self):
         """
         Fills the replay memory with random transitions.
         """
 
-        state = agent.reset_env()
+        state = self.agent.reset_env()
 
         for i in range(self.min_replay_size):
 
-            action = agent.choose_action(state, policy='random')  # choose random action, no NN yet
-            next_state, reward, terminated, _, _ = agent.env.step(action)
+            action = self.agent.choose_action(state, policy='random')  # choose random action, no NN yet
+            next_state, reward, terminated, _, _ = self.agent.env.step(action)
             transition = (state, action, reward, terminated, next_state)
             self.replay_buffer.append(transition)
             state = next_state
 
             if terminated:
-                state = agent.reset_env()
+                state = self.agent.reset_env()
             
     def sample(self, batch_size):
 
         # sample random transitions from the replay memory
         transitions = random.sample(self.replay_buffer, batch_size)
 
+        # convert to array where needed, then to tensor (faster than directly to tensor)
         observations = [t[0] for t in transitions]
-        actions = [t[1] for t in transitions]
+        actions = np.asarray([t[1] for t in transitions])
         rewards = [t[2] for t in transitions]
-        dones = [t[3] for t in transitions]
+        dones = np.asarray([t[3] for t in transitions])
         new_observations = [t[4] for t in transitions]
 
-        observations = [self.agent.preprocess_state(obs) for obs in observations]
-        new_observations = [self.agent.preprocess_state(obs) for obs in new_observations]
-        rewards = (rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8)  # normalize rewards
+        # preprocess observations (normalize, select features)
+        observations = np.asarray([self.agent.preprocess_state(obs) for obs in observations])
+        new_observations = np.asarray([self.agent.preprocess_state(obs) for obs in new_observations])
+        rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
 
         observations_t = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
         actions_t = torch.as_tensor(actions, dtype=torch.int64, device=self.device).unsqueeze(-1)
@@ -116,7 +127,7 @@ class DDQNAgent:
         """
 
         self.original_env = env
-        self.env = env
+        self.env = copy.deepcopy(env)
         self.val_env = val_env
         self.seed = seed
         self.device = device
@@ -124,6 +135,7 @@ class DDQNAgent:
         self.learning_rate = lr
         self.buffer_size = buffer_size
         self.n_episodes = n_episodes
+        self.episode_data = DamEpisodeData()
 
         self.DEBUG = False
 
@@ -136,24 +148,12 @@ class DDQNAgent:
         
         self.replay_memory = ExperienceReplay(self.buffer_size, min_replay_size=10000,
                                               agent=self, seed=self.seed)
-        self.online_network = DQN(self.env, self.learning_rate, seed=self.seed).to(self.device)
+        self.online_network = DQN(self.env, self.learning_rate, seed=self.seed, agent=self).to(self.device)
 
-        self.target_network = DQN(self.env, self.learning_rate, seed=self.seed).to(self.device)
+        self.target_network = DQN(self.env, self.learning_rate, seed=self.seed, agent=self).to(self.device)
         self.target_network.load_state_dict(self.online_network.state_dict())
 
     def training_loop(self, batch_size):
-
-        """
-        Params:
-        env = name of the environment that the agent needs to play
-        agent= which agent is used to train
-        max_episodes = maximum number of games played
-        target = boolean variable indicating if a target network is used (this will be clear later)
-        seed = seed for random number generator for reproducibility
-
-        Returns:
-        average_reward_list = a list of averaged rewards over 100 episodes of playing the game
-        """
 
         # reset the environment
         state = self.reset_env()
@@ -166,7 +166,7 @@ class DDQNAgent:
         for iteration in tqdm(range(self.n_episodes)):
 
             # play one move, add the transition to the replay memory
-            state = self.play_action(state)
+            state, action, reward = self.play_action(state)
 
             # decay epsilon
             self.epsilon *= self.epsilon_decay_step
@@ -181,11 +181,22 @@ class DDQNAgent:
                 self.target_network.load_state_dict(self.online_network.state_dict())
 
             # get some statistics every time the agent has seen the whole dataset
-            if (iteration+1) % len(self.env.test_data) == 0:
-                data_train = self.run_episode(copy.deepcopy(self.original_env))
-                data_val = self.run_episode(copy.deepcopy(self.val_env))
-                # train_rewards.append(data_train.total_reward)
-                # val_rewards.append(data_val.total_reward)
+            if (iteration+1) % self.env.len == 0:
+                data_train = self.validate(copy.deepcopy(self.original_env))
+                data_val = self.validate(copy.deepcopy(self.val_env))
+                train_rewards.append(data_train)
+                val_rewards.append(data_val)
+
+            state = self.env.state
+            self.episode_data.add(
+                datetime.datetime(int(state[6]), 1, 1) +  # year
+                datetime.timedelta(days=int(state[4]) - 1, hours=int(state[2])),  # day of the year + hour
+                state[0],
+                action,
+                action * self.env.max_flow,
+                state[1],
+                reward
+            )
 
         plot_rewards(train_rewards, val_rewards)
         plot_nn_weights(self.online_network)
@@ -193,7 +204,7 @@ class DDQNAgent:
             plt.plot(epsilons)
             plt.show()
 
-        return self.env
+        self.episode_data.debug_plot()
 
     def play_action(self, state):
 
@@ -204,26 +215,28 @@ class DDQNAgent:
         state = next_state
 
         if terminated:
-            # if self.DEBUG:
-            #    self.env.episode_data.debug_plot()
-            #    print(f"reward on train so far: {self.env.episode_data.total_reward}")
+
             state = self.reset_env()
 
-        return state
+        return state, action, reward
 
     def choose_action(self, state, policy):
         state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
         if policy == "random":
-            return self.env.discrete_action_space.sample()
+            action = self.env.discrete_action_space.sample()
+            return self.encode_decode_actions(action, "decode")  # convert to -1, 0, 1
         elif policy == "greedy":
             state = self.preprocess_state(state)
-            return self.online_network.forward(state).argmax().item()
+            action = self.online_network.forward(state).argmax().item()
+            return self.encode_decode_actions(action, "decode")
         elif policy == "epsilon_greedy":
             if random.random() < self.epsilon:
-                return self.env.discrete_action_space.sample()
+                action = self.env.discrete_action_space.sample()
+                return self.encode_decode_actions(action, "decode")
             else:
                 state = self.preprocess_state(state)
-                return self.online_network.forward(state).argmax().item()
+                action = self.online_network.forward(state).argmax().item()
+                return self.encode_decode_actions(action, "decode")
         else:
             raise ValueError("Unknown policy")
 
@@ -234,6 +247,7 @@ class DDQNAgent:
         batch_size = number of transitions that will be sampled
         """
 
+        # sampler also takes care of normalizing the features + rewards and converting to tensors
         observations_t, actions_t, rewards_t, dones_t, new_observations_t = self.replay_memory.sample(batch_size)
 
         self.target_network.eval()
@@ -245,48 +259,55 @@ class DDQNAgent:
         # Compute loss
         self.online_network.train()
         q_values = self.online_network.forward(observations_t)
-        action_q_values = torch.gather(input=q_values, dim=1, index=actions_t)
+        actions_t = self.encode_decode_actions(actions_t, "encode")
+        action_q_values = torch.gather(input=q_values, dim=1, index=actions_t.unsqueeze(-1))
         # loss = F.mse_loss(action_q_values, targets)
-        loss = F.smooth_l1_loss(action_q_values, targets)
+        loss = f.smooth_l1_loss(action_q_values, targets)
 
         # Gradient descent to update the weights of the neural network
         self.online_network.optimizer.zero_grad()
         loss.backward()
         self.online_network.optimizer.step()
 
-    def validate(
-        self
-    ):
-        # reset environment
-        state = self.reset_env()
-
-        # play until episode is terminated
-        terminated = False
-        while not terminated:
-            action = self.choose_action(state, "greedy")
-            next_state, _, terminated, _, *_ = self.env.step(action)
-            state = next_state
-
-        return self.env
-
-    def run_episode(self, env):
-
+    def validate(self, env):
+        # assumes that the environment is reset
         state = env.state
 
         # play until episode is terminated
+        total_reward = 0
         terminated = False
         while not terminated:
             action = self.choose_action(state, "greedy")
-            next_state, _, terminated, _, *_ = env.step(action)
+            next_state, reward, terminated, _, *_ = env.step(action)
+            total_reward += reward
             state = next_state
 
-        return env
+        return total_reward
 
     def reset_env(self):
 
         self.env = copy.deepcopy(self.original_env)
+        self.env.reset(seed=self.seed)  # TODO: check if necessary
+        # make fake action to get the first state
+        state, _, _, _, _ = self.env.step(0)
 
-        return self.env.state
+        return state
+
+    @staticmethod
+    def augment_state(state):
+        # only keep 3 first features
+        state = state[:3]
+        # TODO: add the other features
+
+        return state
+
+    @staticmethod
+    def encode_decode_actions(action, direction):
+        if direction == "encode":
+            return torch.as_tensor(np.asarray([1 if a == -1 else 2 if a == 1 else 0 for a in action]))
+        elif direction == "decode":
+            return -1 if action == 1 else 1 if action == 2 else 0
+        # TODO: find a fix for this, ew
 
     def preprocess_state(self, state):
         state[0] = state[0] / self.env.max_volume
@@ -295,6 +316,7 @@ class DDQNAgent:
         state[3] = state[3] / 7
         state[4] = state[4] / 365
         state[5] = state[5] / 12
+        state = self.augment_state(state)
 
         return state
 
@@ -319,3 +341,90 @@ def plot_nn_weights(model):
     plt.ylabel("weight")
     plt.title("Feature importance")
     plt.show()
+
+
+@dataclass
+class DamEpisodeData:
+    """Dataclass to store episode data for a dam environment"""
+
+    date: list[datetime.datetime] = field(default_factory=list)
+    storage: list[float] = field(default_factory=list)
+    action: list[float] = field(default_factory=list)
+    flow: list[float] = field(default_factory=list)
+    price: list[float] = field(default_factory=list)
+    reward: list[float] = field(default_factory=list)
+    reward_cumulative = property(lambda self: cumsum(self.reward))
+    total_reward = property(lambda self: sum(self.reward))
+
+    def __len__(self):
+        return len(self.date)
+
+    def add(
+        self,
+        date: datetime.datetime,
+        storage: float,
+        action: float,
+        flow: float,
+        price: float,
+        reward: float,
+    ):
+        self.date.append(date)
+        self.storage.append(storage)
+        self.action.append(action)
+        self.flow.append(flow)
+        self.price.append(price)
+        self.reward.append(reward)
+
+    def debug_plot(self, title: str | None = None):
+        sns.set()
+        fig, axs = plt.subplots(6, 1, figsize=(10, 10), sharex=True)
+
+        if title:
+            fig.suptitle(title)
+
+        axs[0].plot(self.date, self.storage)
+        axs[0].set_title("Storage")
+
+        axs[1].scatter(self.date, self.action, s=1, marker="x")
+        axs[1].set_title("Action")
+
+        axs[2].plot(self.date, self.flow)
+        axs[2].set_title("Flow")
+
+        axs[3].plot(self.date, self.price)
+        axs[3].set_title("Price")
+
+        axs[4].plot(self.date, self.reward)
+        axs[4].set_title("Reward")
+
+        axs[5].plot(self.date, self.reward_cumulative)
+        axs[5].set_title("Cumulative reward")
+
+        fig.tight_layout()
+        plt.show()
+
+    def plot_fancy(self):
+        sns.set()
+        price = self.price[-1001:-1]
+        action = self.action[-1000:]
+        fig, axs = plt.subplots(1, 1, figsize=(10, 10))
+        cols = plt_col(action)
+
+        df = pd.DataFrame({"price": price, "action": action}).reset_index()
+        df.action = df.action.map({0: "nothing", 1: "sell", 2: "buy"})
+
+        sns.scatterplot(
+            data=df,
+            x="index",
+            y="price",
+            hue="action",
+            palette={"nothing": "blue", "sell": "green", "buy": "red"},
+        )
+        plt.ylim(0, 170)
+        plt.title("Action on the prices over time")
+
+        # axs.scatter(range(len(price)),price,s=100, c=cols,marker= 'o', label=cols)
+        # axs.legend()
+        # axs.set_title("Action on the prices")
+        # fig.tight_layout()
+        plt.show()

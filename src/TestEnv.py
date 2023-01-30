@@ -32,7 +32,7 @@ class HydroElectric_Test(gym.Env):
     def step(self, action):
         action = np.squeeze(action) # Remove the extra dimension
         # Calculate the costs and volume change when pumping water (action >0)
-        if (action >0) and (self.volume <= self.max_volume):
+        if (action > 0) and (self.volume <= self.max_volume):
             if (self.volume + action*self.max_flow) > self.max_volume:
                 action = (self.max_volume - self.volume)/self.max_flow
             pumped_water_volume = action * self.max_flow
@@ -51,20 +51,22 @@ class HydroElectric_Test(gym.Env):
         # No action (action =0)
         elif action == 0:
             reward = 0
+        else:  # just to make sure that the reward is always defined
+            reward = 0
 
-        self.counter += 1 # Increase the counter
-        self.hour += 1 # Increase the hour
+        self.counter += 1  # Increase the counter
+        self.hour += 1  # Increase the hour
         if self.counter % 24 == 0:  # If the counter is a multiple of 24, increase the day, reset hour to first hour
             self.day += 1
             self.hour = 1
-        if self.counter == len(self.price_values.flatten())-1: # If the counter is equal to the number of hours in the test data, terminate the episode
+        if self.counter == len(self.price_values.flatten())-1:  # If the counter is equal to the number of hours in the test data, terminate the episode
             terminated = True
             truncated = True
-        else: # If the counter is not equal to the number of hours in the test data, continue the episode
+        else:  # If the counter is not equal to the number of hours in the test data, continue the episode
             terminated = False
             truncated = False
-        info = {} # No info
-        self.state = self.observation() # Update the state
+        info = {}  # No info
+        self.state = self.observation()  # Update the state
 
         return self.state, reward, terminated, truncated, info
 
