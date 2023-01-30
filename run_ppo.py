@@ -20,7 +20,7 @@ if __name__ == "__main__":
     agent = PPOAgent(env=environment)
 
     # train agent
-    n_episodes = 10
+    n_episodes = 1000
     random_startpoint = False
 
     # if file exists, agent
@@ -30,13 +30,13 @@ if __name__ == "__main__":
         agent.load(filepath)
         print("Loaded agent from file")
 
-    episode_data = agent.train(n_episodes)
-
-    # save agent
-    agent.save(filepath)
-
-    agent.env.episode_data.debug_plot("Final training episode")
+    # train agent
+    if True:
+        agent.train(n_episodes, save_path=filepath.parent)
+        agent.save(filepath)
+        agent.env.episode_data.debug_plot("Final training episode")
 
     # validate agent
-    # agent.validate(price_data=val_data)
-    # agent.env.episode_data.debug_plot("Validation episode")
+    if True:
+        agent.validate(price_data=val_data)
+        agent.env.episode_data.debug_plot("Validation episode")

@@ -1,15 +1,13 @@
-import math
-import random
 from datetime import datetime
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch import nn
 from tqdm import tqdm
 
 from src.environment import ContinuousDamEnv
 from src.utils import discounted_reward
-import numpy as np
 
 DEVICE = torch.device(
     "cuda"
@@ -48,7 +46,14 @@ class BasicPGNetwork(nn.Module):
 
 
 class BasicPGAgent:
-    def __init__(self, learning_rate: float, env: ContinuousDamEnv):
+    def __init__(
+        self,
+        env: ContinuousDamEnv,
+        learning_rate: float = 2.5e-4,
+        epochs: int = 10,
+        batch_size: int = 1024,
+        discount_factor: float = 0.99,
+    ):
         self.env = env
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
@@ -58,37 +63,67 @@ class BasicPGAgent:
             self.policy_network.parameters(), lr=learning_rate
         )
 
-    def update_policy(self, batch, sample_size: int = 1000):
-        # get total reward
-        rewards = torch.vstack([torch.tensor(e[3]) for e in batch])
-        returns = rewards.sum()
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.gamma = discount_factor
 
-        # sample actions from batch
-        batch = random.sample(batch, sample_size)
-
+    def calculate_loss(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+    ):
         # compute the probabilities of the actions taken under the current policy
-        means = torch.stack([e[0] for e in batch])
-        stds = torch.stack([e[1] for e in batch])
-        actions = torch.stack([e[2] for e in batch])
-
+        means, stds = self.policy_network(states)
         log_probs = torch.distributions.Normal(means, stds).log_prob(actions)
 
-        policy_loss = -(log_probs * returns).mean()
-        self.optimizer.zero_grad()
-        policy_loss.backward()
-        self.optimizer.step()
+        # compute the loss
+        loss = -(log_probs * rewards).mean()
 
-        return policy_loss.item()
+        return loss
 
-    def train(
-        self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 10
+    def update_policy(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
     ):
-        pbar = tqdm(range(n_episodes))
-        for i in pbar:
+        for _ in range(self.epochs):
+            indexes = torch.randperm(len(states))
+            epoch_losses = []
+
+            for start in range(0, len(states), self.batch_size):
+                batch_indexes = indexes[start : start + self.batch_size]
+
+                batch_states = states[batch_indexes]
+                batch_actions = actions[batch_indexes]
+                batch_rewards = torch.tensor(
+                    discounted_reward(
+                        rewards[batch_indexes].detach().cpu(), self.gamma
+                    ),
+                    device=DEVICE,
+                )
+                # batch_rewards = rewards[batch_indexes]
+
+                self.policy_network = self.policy_network.to(DEVICE)
+
+                loss = self.calculate_loss(batch_states, batch_actions, batch_rewards)
+                self.optimizer.zero_grad()
+                # loss.requires_grad = True
+                loss.backward()
+                self.optimizer.step()
+
+                epoch_losses.append(loss.item())
+
+            self._pbar.set_description(f"Loss: {np.mean(epoch_losses):.4f}")
+
+    def play_game(self):
+        with torch.no_grad():
+            self.policy_network = self.policy_network.cpu()
             state, _ = self.env.reset()
             terminated = False
 
-            batch: list[tuple[float | torch.Tensor, ...]] = []
+            states, actions, rewards = [], [], []
 
             while not terminated:
                 state_tensor = torch.tensor(state).float().unsqueeze(0)
@@ -96,22 +131,34 @@ class BasicPGAgent:
                 action = torch.normal(mean, std)
 
                 next_state, reward, terminated, *_ = self.env.step(action.item())
+                states.append(state)
+                actions.append(action)
+                rewards.append(reward)
                 state = next_state
 
-                batch.append((mean, std, action, reward))
+        return states, actions, rewards
 
-            loss = self.update_policy(batch)
-            reward = self.env.episode_data.total_reward
-            pbar.set_description(f"Loss: {loss:.4f}, Reward: {reward:.4f}")
+    def train(
+        self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 10
+    ):
+        self._pbar = tqdm(range(n_episodes))
+        for i in self._pbar:
+            states, actions, rewards = self.play_game()
+            self.update_policy(
+                torch.tensor(states, device=DEVICE).float(),
+                torch.tensor(actions, device=DEVICE).float().unsqueeze(1),
+                torch.tensor(rewards, device=DEVICE).float(),
+            )
 
             if save_path is not None and i % save_frequency == 0:
-                self.save(save_path / f"{reward:.0f}.pt")
-
-        return self.env.episode_data
+                reward = self.env.episode_data.total_reward
+                self.save(save_path / f"{i}-{reward=:.0f}.pt")
 
     def get_greedy_action(self, state):
-        state = torch.tensor(state).float().unsqueeze(0)
-        mean, _ = self.policy_network(state)
+        with torch.no_grad():
+            state = torch.tensor(state).float().unsqueeze(0)
+            mean, _ = self.policy_network(state)
+
         return mean.item()
 
     def validate(self, price_data: dict[datetime, float]):
@@ -124,16 +171,6 @@ class BasicPGAgent:
             state = next_state
 
         return self.env.episode_data
-
-    def _get_log_prob(self, mean, std, action):
-        log_std = torch.log(std)
-        var = std.pow(2)
-        log_prob = (
-            -0.5 * ((action - mean) / var).pow(2)
-            - 0.5 * math.log(2 * math.pi)
-            - log_std
-        )
-        return log_prob.sum(dim=-1)
 
     def save(self, path: str | Path):
         torch.save(self.policy_network.state_dict(), path)
@@ -149,7 +186,7 @@ class PPOAgent:
         learning_rate: float = 2.5e-4,
         clip_epsilon: float = 0.2,
         epochs: int = 10,
-        batch_size: int = 512,
+        batch_size: int = 1024,
         discount_factor: float = 0.98,
         entropy_loss_coeff: float = 0.01,
     ):
@@ -162,7 +199,7 @@ class PPOAgent:
         )
 
         # training parameters
-        # TODO: check if AdamW is required
+        # TODO: check we can just use Adam
         self.optimizer = torch.optim.Adagrad(
             self.policy_network.parameters(), lr=learning_rate
         )
@@ -216,19 +253,21 @@ class PPOAgent:
         old_log_probs,
     ):
         for _ in range(self.epochs):
-            indexes = torch.randperm(len(self.env))
+            indexes = torch.randperm(len(states))
+            epoch_losses = []
 
-            for start in range(0, len(self.env), self.batch_size):
+            for start in range(0, len(states), self.batch_size):
                 batch_indexes = indexes[start : start + self.batch_size]
 
                 batch_states = states[batch_indexes]
                 batch_actions = actions[batch_indexes]
-                batch_rewards = torch.tensor(
-                    discounted_reward(
-                        rewards[batch_indexes].detach().cpu(), self.discount_factor
-                    ),
-                    device=DEVICE,
-                )
+                # batch_rewards = torch.tensor(
+                #     discounted_reward(
+                #         rewards[batch_indexes].detach().cpu(), self.discount_factor
+                #     ),
+                #     device=DEVICE,
+                # )
+                batch_rewards = rewards[batch_indexes]
                 batch_log_probs = old_log_probs[batch_indexes]
 
                 self.policy_network = self.policy_network.to(DEVICE)
@@ -242,28 +281,17 @@ class PPOAgent:
                 self.optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5)
-                # apply_grad_clipping(self.policy_network, 0.5)
-
                 self.optimizer.step()
 
-                self._pbar.set_description(f"Loss: {loss.item():.4f}")
+                epoch_losses.append(loss.item())
 
-    def train(
-        self,
-        n_episodes: int,
-        save_path: None | Path = None,
-        save_frequency: int = 10,
-    ):
-        self.policy_network.train()
-        self._pbar = tqdm(range(n_episodes))
-        for i in self._pbar:
+            self._pbar.set_description(f"Loss: {np.mean(epoch_losses):.4f}")
 
+    def play_game(self):
+        with torch.no_grad():
             state, _ = self.env.reset()
             terminated = False
-            states = []
-            actions = []
-            rewards = []
-            old_log_probs = []
+            states, actions, rewards, old_log_probs = [], [], [], []
             self.policy_network = self.policy_network.cpu()
 
             while not terminated:
@@ -275,22 +303,29 @@ class PPOAgent:
                 old_log_probs.append(log_probs)
                 state = next_state
 
-            states_tensor = torch.tensor(states, device=DEVICE).float()
-            actions_tensor = torch.tensor(actions, device=DEVICE).float().unsqueeze(1)
-            rewards_tensor = torch.tensor(rewards, device=DEVICE).float()
-            old_log_probs_tensor = torch.tensor(old_log_probs, device=DEVICE).float()
+        return states, actions, rewards, old_log_probs
+
+    def train(
+        self,
+        n_episodes: int,
+        save_path: None | Path = None,
+        save_frequency: int = 10,
+    ):
+        self.policy_network.train()
+        self._pbar = tqdm(range(n_episodes))
+        for i in self._pbar:
+            states, actions, rewards, old_log_probs = self.play_game()
 
             self.update_policy(
-                states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                old_log_probs_tensor,
+                torch.tensor(states, device=DEVICE).float(),
+                torch.tensor(actions, device=DEVICE).float().unsqueeze(1),
+                torch.tensor(rewards, device=DEVICE).float(),
+                torch.tensor(old_log_probs, device=DEVICE).float(),
             )
 
-            reward = self.env.episode_data.total_reward
-
             if save_path is not None and i % save_frequency == 0:
-                self.save(save_path / f"{reward:.0f}.pt")
+                reward = self.env.episode_data.total_reward
+                self.save(save_path / f"{i}-{reward:.0f}.pt")
 
     def validate(self, price_data: dict[datetime, float]):
         state, _ = self.env.reset(price_data=price_data)
