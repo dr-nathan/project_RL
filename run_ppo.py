@@ -20,7 +20,7 @@ if __name__ == "__main__":
     agent = PPOAgent(env=environment)
 
     # train agent
-    n_episodes = 1000
+    n_episodes = 500
     random_startpoint = False
 
     # if file exists, agent
