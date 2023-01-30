@@ -35,15 +35,15 @@ if __name__ == "__main__":
 
     # load the DQN agent
     discount_rate = 0.98
-    batch_size = 32
+    batch_size = 64
 
     epsilon = 0.5  # overwritten if epsilon_decay is True
-    epsilon_start = 0.9
+    epsilon_start = 1
     epsilon_end = 0.05
     epsilon_decay = True
 
     lr = 5e-3
-    n_episodes = int(10 * len(environment))  # number is how many times you run throuh the whole dataset
+    n_episodes = int(20 * len(environment))  # number is how many times you run throuh the whole dataset
     buffer_size = len(environment)
 
     dagent = DDQNAgent(
