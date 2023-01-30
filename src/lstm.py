@@ -32,7 +32,7 @@ class LSTM(nn.Module):
         self.linear = nn.Linear(hidden_size,out_size)
         self.hidden = (torch.zeros(1,1,hidden_size),torch.zeros(1,1,hidden_size))
     
-    def forward(self,seq):
+    def forward(self, seq):
         lstm_out, self.hidden = self.lstm(seq.view(len(seq),1,-1), self.hidden)
         pred = self.linear(lstm_out.view(len(seq),-1))
         return pred[-1]

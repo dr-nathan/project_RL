@@ -347,7 +347,7 @@ class ContinuousDamEnv(DamEnvBase):
             self._is_winter(),
             self._is_weekend(),
             self._mean_window(24) / 200,
-            self._cov_window(24),
+            self._cov_window(24),  # COV is normalized std
             self._volatility_window(24)
         )
 
