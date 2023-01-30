@@ -10,6 +10,7 @@ parser.add_argument('--validation', type=bool, default=False)  # If true, the mo
 args = parser.parse_args()
 
 env = HydroElectric_Test(path_to_test_data=args.train_file)
+val_env = HydroElectric_Test(path_to_test_data=args.val_file)
 
 # load the DQN agent
 discount_rate = 0.98
@@ -19,13 +20,14 @@ epsilon_start = 0.9
 epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-3
-n_episodes = int(10 * len(env))  # number is how many times you run throuh the whole dataset
-buffer_size = len(env)
+n_episodes = int(10 * len(env.test_data))  # number is how many times you run throuh the whole dataset
+buffer_size = len(env.test_data)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7
 
 dagent = DDQNAgent(
     env=env,
+    val_env=val_env,
     device=device,
     epsilon=epsilon,
     epsilon_decay=epsilon_decay,
@@ -39,11 +41,11 @@ dagent = DDQNAgent(
 )
 
 if not args.validation:
-    episode_data = dagent.training_loop(batch_size, price_data_val=args.val_file)
+    episode_data = dagent.training_loop(batch_size)
 
-    episode_data.debug_plot("Final training episode")
+    # episode_data.debug_plot("Final training episode")
 
-episode_data = dagent.validate(price_data=args.val_file)
+episode_data = dagent.validate()
 
 episode_data.debug_plot("Validation episode")
 print(f"total val reward: {episode_data.total_reward}")
