@@ -17,10 +17,10 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = ContinuousDamEnv(train_data)
-    agent = PPOAgent(learning_rate=2.5e-4, env=environment, clip_epsilon=0.6)
+    agent = PPOAgent(env=environment)
 
     # train agent
-    n_episodes = 100
+    n_episodes = 10
     random_startpoint = False
 
     # if file exists, agent
@@ -30,8 +30,7 @@ if __name__ == "__main__":
         agent.load(filepath)
         print("Loaded agent from file")
 
-    # episode_data = agent.train(n_episodes)
-    episode_data = agent.train(n_episodes, filepath.parent)
+    episode_data = agent.train(n_episodes)
 
     # save agent
     agent.save(filepath)
