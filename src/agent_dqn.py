@@ -16,11 +16,8 @@ class DQN(nn.Module):
     
     def __init__(self, env, learning_rate, seed):
 
-        torch.manual_seed(seed)
-        torch.cuda.manual_seed(seed)
-        torch.cuda.manual_seed_all(seed)
-
         super().__init__()
+        self.seed = torch.manual_seed(seed)
         input_features, *_ = env.observation_space.shape
         action_space = env.action_space.n
         
@@ -30,7 +27,7 @@ class DQN(nn.Module):
         self.dense4 = nn.Linear(in_features=32, out_features=action_space)
         
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimizer = optim.AdamW(self.parameters(), lr=learning_rate)
         
     def forward(self, x):
 
@@ -44,7 +41,7 @@ class DQN(nn.Module):
 
 class ExperienceReplay:
     
-    def __init__(self, env, buffer_size, min_replay_size, agent):
+    def __init__(self, env, buffer_size, min_replay_size, agent, seed):
 
         """
         Params:
@@ -71,7 +68,7 @@ class ExperienceReplay:
 
         for i in range(self.min_replay_size):
 
-            action = agent.choose_action(state, policy='epsilon_greedy')
+            action = agent.choose_action(state, policy='random')  # choose random action, no NN yet
             next_state, reward, terminated, _, _ = self.env.step(action)
             transition = (state, action, reward, terminated, next_state)
             self.replay_buffer.append(transition)
@@ -118,10 +115,6 @@ class DDQNAgent:
         seed = seed for random number generator for reproducibility
         '''
 
-        # set seed
-        random.seed(seed)
-        np.random.seed(seed)
-
         self.env = env
         self.seed = seed
         self.device = device
@@ -139,7 +132,8 @@ class DDQNAgent:
             self.epsilon = epsilon
             self.epsilon_decay_step = 1.0
         
-        self.replay_memory = ExperienceReplay(self.env, self.buffer_size, min_replay_size=1000, agent=self)
+        self.replay_memory = ExperienceReplay(self.env, self.buffer_size, min_replay_size=10000,
+                                              agent=self, seed=self.seed)
         self.online_network = DQN(self.env, self.learning_rate, seed=self.seed).to(self.device)
 
         self.target_network = DQN(self.env, self.learning_rate, seed=self.seed).to(self.device)
@@ -165,6 +159,8 @@ class DDQNAgent:
         train_rewards = []
         val_rewards = []
 
+        epsilons = []
+
         for iteration in tqdm(range(self.n_episodes)):
 
             # play one move, add the transition to the replay memory
@@ -172,11 +168,13 @@ class DDQNAgent:
 
             # decay epsilon
             self.epsilon *= self.epsilon_decay_step
+            epsilons.append(self.epsilon)
 
-            # sample a batch of transitions from the replay memory, and update online network
-            self.learn(batch_size=batch_size)
+            if (iteration+1) % 4 == 0:
+                # sample a batch of transitions from the replay memory, and update online network
+                self.learn(batch_size=batch_size)
 
-            # every 1000 iterations, update the target network
+            # every 500 iterations, update the target network
             if (iteration+1) % 500 == 0:
                 self.target_network.load_state_dict(self.online_network.state_dict())
 
@@ -190,6 +188,9 @@ class DDQNAgent:
 
         plot_rewards(train_rewards, val_rewards)
         plot_nn_weights(self.online_network)
+        if self.DEBUG:
+            plt.plot(epsilons)
+            plt.show()
 
         return self.env.episode_data
 
@@ -232,12 +233,14 @@ class DDQNAgent:
 
         observations_t, actions_t, rewards_t, dones_t, new_observations_t = self.replay_memory.sample(batch_size)
 
+        self.target_network.eval()
         target_q_values = self.target_network.forward(new_observations_t)
         max_target_q_values = target_q_values.max(dim=1, keepdim=True)[0]
 
         targets = rewards_t + self.discount_rate * (1 - dones_t) * max_target_q_values
 
         # Compute loss
+        self.online_network.train()
         q_values = self.online_network.forward(observations_t)
         action_q_values = torch.gather(input=q_values, dim=1, index=actions_t)
         # loss = F.mse_loss(action_q_values, targets)
@@ -302,7 +305,9 @@ def plot_rewards(train_rewards, val_rewards):
 # to get feature importance
 def plot_nn_weights(model):
     weights = model.dense1.weight.detach().numpy()
-    plt.bar(range(weights.shape[1]), weights[0])
+    # get absolute mean of weights
+    weights = np.abs(weights).mean(axis=0)
+    plt.bar(range(len(weights)), weights)
     plt.xlabel("feature")
     plt.ylabel("weight")
     plt.title("Feature importance")

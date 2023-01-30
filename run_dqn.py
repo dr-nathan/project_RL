@@ -1,3 +1,6 @@
+import os
+import random
+import numpy as np
 import pandas as pd
 from pathlib import Path
 from src.environment import DiscreteContinuousDamEnv
@@ -7,6 +10,15 @@ from src.agent_dqn import DDQNAgent
 
 
 if __name__ == "__main__":
+
+    seed_value = 3
+    random.seed(seed_value)
+    np.random.seed(seed_value)
+    torch.manual_seed(seed_value)
+    torch.cuda.manual_seed_all(seed_value)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    os.environ['PYTHONHASHSEED'] = str(seed_value)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -26,12 +38,12 @@ if __name__ == "__main__":
     batch_size = 32
 
     epsilon = 0.5  # overwritten if epsilon_decay is True
-    epsilon_start = 1
-    epsilon_end = 0.1
+    epsilon_start = 0.9
+    epsilon_end = 0.05
     epsilon_decay = True
 
     lr = 5e-4
-    n_episodes = int(20 * len(environment))  # number is how many times you run throuh the whole dataset
+    n_episodes = int(100 * len(environment))  # number is how many times you run throuh the whole dataset
     buffer_size = len(environment)
 
     dagent = DDQNAgent(
@@ -45,7 +57,7 @@ if __name__ == "__main__":
         discount_rate=discount_rate,
         lr=lr,
         buffer_size=buffer_size,
-        seed=7
+        seed=seed_value
     )
 
     episode_data = dagent.training_loop(batch_size, price_data_val=val_data)
