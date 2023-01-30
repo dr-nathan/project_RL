@@ -27,7 +27,7 @@ class DQN(nn.Module):
         self.dense4 = nn.Linear(in_features=32, out_features=action_space)
         
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
-        self.optimizer = optim.AdamW(self.parameters(), lr=learning_rate)
+        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         
     def forward(self, x):
 

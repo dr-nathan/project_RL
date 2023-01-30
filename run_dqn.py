@@ -11,7 +11,7 @@ from src.agent_dqn import DDQNAgent
 
 if __name__ == "__main__":
 
-    seed_value = 3
+    seed_value = 7
     random.seed(seed_value)
     np.random.seed(seed_value)
     torch.manual_seed(seed_value)
@@ -42,8 +42,8 @@ if __name__ == "__main__":
     epsilon_end = 0.05
     epsilon_decay = True
 
-    lr = 5e-4
-    n_episodes = int(100 * len(environment))  # number is how many times you run throuh the whole dataset
+    lr = 5e-3
+    n_episodes = int(10 * len(environment))  # number is how many times you run throuh the whole dataset
     buffer_size = len(environment)
 
     dagent = DDQNAgent(

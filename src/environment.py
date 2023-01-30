@@ -326,7 +326,7 @@ class ContinuousDamEnv(DamEnvBase):
         self.action_space = spaces.Box(low=-1, high=1)
 
         # state is (hour, electricity price, stored energy, is_winter, is_weekend)
-        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(5,))
 
         super().__init__(*args, **kwargs)
 
@@ -344,11 +344,11 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_date.hour / 24,
             self.current_price / 200,  # self.max_price
             self.stored_energy / self.max_stored_energy,
-            self._is_winter(),
-            self._is_weekend(),
+            #self._is_winter(),
+            #self._is_weekend(),
             self._mean_window(24) / 200,
             self._cov_window(24),  # COV is normalized std
-            self._volatility_window(24)
+            # self._volatility_window(24)
         )
 
     def _is_weekend(self):
@@ -374,10 +374,10 @@ class ContinuousDamEnv(DamEnvBase):
         std = self._std_window(window_size)
         return std * np.sqrt(window_size)
 
-    def _lstm_predict_next(self,window_size,future) :
+    def _lstm_predict_next(self, window_size, future) :
         lstm = LSTM_price()
         window = self.price_history[-window_size:]
-        return lstm.predict(window_size,future,window)
+        return lstm.predict(window_size, future, window)
 
 
 class DiscreteContinuousDamEnv(ContinuousDamEnv):
