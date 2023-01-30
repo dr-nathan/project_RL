@@ -18,8 +18,8 @@ class DQN(nn.Module):
 
         super().__init__()
         self.seed = torch.manual_seed(seed)
-        input_features, *_ = env.observation_space.shape
-        action_space = env.action_space.n
+        input_features, *_ = env.observation_space.shape # TODO: get number of features from agent
+        action_space = env.discrete_action_space.n
         
         self.dense1 = nn.Linear(in_features=input_features, out_features=32)
         # self.dense2 = nn.Linear(in_features=128, out_features=64)
