@@ -193,7 +193,7 @@ class DamEnvBase(gym.Env):
 
         return self._get_state()
 
-    def step(self, action: int):
+    def step(self, action: int | float | bool):
         flow_rate = self._action_to_flow(action)
 
         # update the applied flow so we don't overflow or store less than 0

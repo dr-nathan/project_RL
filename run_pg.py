@@ -17,11 +17,10 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = ContinuousDamEnv(train_data)
-    agent = BasicPGAgent(learning_rate=0.1, env=environment)
+    agent = BasicPGAgent(environment)
 
     # train agent
     n_episodes = 500
-    random_startpoint = False
 
     # if file exists, agent
     filepath = Path(__file__).parent / "PG" / "model.pt"
@@ -30,13 +29,13 @@ if __name__ == "__main__":
         agent.load(filepath)
         print("Loaded agent from file")
 
-    episode_data = agent.train(n_episodes, filepath.parent)
+    # train
+    if True:
+        agent.train(n_episodes, filepath.parent)
+        agent.save(filepath)
+        agent.env.episode_data.debug_plot("Final training episode")
 
-    # save agent
-    agent.save(filepath)
-
-    agent.env.episode_data.debug_plot("Final training episode")
-
-    # validate agent
-    agent.validate(price_data=val_data)
-    agent.env.episode_data.debug_plot("Validation episode")
+    # validate
+    if True:
+        agent.validate(price_data=val_data)
+        agent.env.episode_data.debug_plot("Validation episode")
