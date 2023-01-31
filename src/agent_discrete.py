@@ -168,8 +168,10 @@ class QLearnAgent:
         )
         # plot
         sns.displot(df, x="Price", hue="Set", kind="kde", fill=True)
-        for q in self.env.quantiles:
+        plt.axvline(self.env.quantiles[0], color="red", lw=0.7, label='quantiles')
+        for q in self.env.quantiles[1:]:
             plt.axvline(q, color="red", lw=0.7)
+        plt.legend()
         plt.title("Price distribution")
         plt.xlabel("Price")
         plt.tight_layout()
