@@ -68,17 +68,18 @@ class ExperienceReplay:
         Fills the replay memory with random transitions.
         """
 
+        # reset is now done from the agent. Simply deepcopies the initial env
         state = self.agent.reset_env()
 
         for i in range(self.min_replay_size):
 
             action = self.agent.choose_action(state, policy='random')  # choose random action, no NN yet
-            next_state, reward, terminated, _, _ = self.agent.env.step(action)
+            next_state, reward, terminated, truncated, _ = self.agent.env.step(action)
             transition = (state, action, reward, terminated, next_state)
             self.replay_buffer.append(transition)
             state = next_state
 
-            if terminated:
+            if terminated or truncated:
                 state = self.agent.reset_env()
             
     def sample(self, batch_size):
