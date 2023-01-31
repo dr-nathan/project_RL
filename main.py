@@ -2,6 +2,7 @@ from src.TestEnv import HydroElectric_Test
 import argparse
 import torch
 from src.agent_dqn import DDQNAgent
+from src.environment import TestEnvWrapper
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--train_file', type=str, default='data/train.xlsx')  # Path to the excel file with the train data
@@ -11,6 +12,10 @@ args = parser.parse_args()
 
 env = HydroElectric_Test(path_to_test_data=args.train_file)
 val_env = HydroElectric_Test(path_to_test_data=args.val_file)
+
+# TODO: do we do this here or in the agent?
+env_wrapped = TestEnvWrapper(env)
+val_env_wrapped = TestEnvWrapper(val_env)
 
 # load the DQN agent
 discount_rate = 0.98
@@ -27,8 +32,8 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7
 
 dagent = DDQNAgent(
-    env=env,
-    val_env=val_env,
+    env=env_wrapped,
+    val_env=val_env_wrapped,
     device=device,
     epsilon=epsilon,
     epsilon_decay=epsilon_decay,
