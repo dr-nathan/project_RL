@@ -7,7 +7,6 @@ from src.environment import ContinuousDamEnv
 from src.utils import convert_dataframe
 
 if __name__ == "__main__":
-
     # load data
     train_data = pd.read_excel(Path(__file__).parent / "data" / "train.xlsx")
     train_data = convert_dataframe(train_data)
@@ -17,12 +16,19 @@ if __name__ == "__main__":
 
     # create environment and agent
     environment = ContinuousDamEnv(train_data)
-    agent = BasicPGAgent(environment)
+    agent = BasicPGAgent(
+        env=environment,
+        discount_factor=0.98,
+        epochs=5,
+        hidden_layers=3,
+        hidden_size=5,
+        learning_rate=1e-3,
+    )
 
     # train agent
     n_episodes = 500
 
-    # if file exists, agent
+    # if file exists, load policy
     filepath = Path(__file__).parent / "PG" / "model.pt"
     filepath.parent.mkdir(parents=True, exist_ok=True)
     if filepath.exists():
@@ -30,12 +36,10 @@ if __name__ == "__main__":
         print("Loaded agent from file")
 
     # train
-    if True:
-        agent.train(n_episodes, filepath.parent)
-        agent.save(filepath)
-        agent.env.episode_data.debug_plot("Final training episode")
+    agent.train(n_episodes, filepath.parent)
+    agent.save(filepath)
+    agent.env.episode_data.debug_plot("Final training episode")
 
     # validate
-    if True:
-        agent.validate(price_data=val_data)
-        agent.env.episode_data.debug_plot("Validation episode")
+    agent.validate(price_data=val_data)
+    agent.env.episode_data.debug_plot("Validation episode")
