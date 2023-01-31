@@ -13,7 +13,7 @@ env = HydroElectric_Test(path_to_test_data=args.train_file)
 val_env = HydroElectric_Test(path_to_test_data=args.val_file)
 
 # load the DQN agent
-discount_rate = 0.98
+discount_rate = 0.995
 batch_size = 32
 epsilon = 0.5  # overwritten if epsilon_decay is True
 epsilon_start = 1
