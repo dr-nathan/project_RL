@@ -6,13 +6,13 @@ import torch
 
 from src.agent_pg import DEVICE, BasicPGNetwork
 
-filepath = Path(__file__).parent / "PG" / "nobatch_lmean_addlayer.pt"
+filepath = Path(__file__).parent / "PG" / "test.pt"
 net = BasicPGNetwork(2, 1).to(DEVICE)
 net.load_state_dict(torch.load(filepath, map_location=DEVICE))
 
 # %%
-hours = torch.linspace(-10, 10, 1000)
-prices = torch.linspace(-10, 10, 1000)
+hours = torch.linspace(0, 1, 1000)
+prices = torch.linspace(0, 1, 1000)
 
 x, y = torch.meshgrid(hours, prices, indexing="xy")
 

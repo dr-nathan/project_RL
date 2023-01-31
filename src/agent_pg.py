@@ -3,12 +3,11 @@ from pathlib import Path
 
 import torch
 from torch import nn
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
-import scipy
+
 from src.environment import ContinuousDamEnv
 from src.utils import discounted_reward
-
-from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 DEVICE = torch.device(
     "cuda"
@@ -24,18 +23,26 @@ torch.autograd.set_detect_anomaly(True)
 
 
 class BasicPGNetwork(nn.Module):
-    def __init__(self, state_size: int, action_size: int, hidden_size: int = 5):
+    def __init__(
+        self, state_size: int, action_size: int, hidden_size: int = 5, n_linear: int = 5
+    ):
         super().__init__()
+
         self.fc1 = nn.Linear(state_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, hidden_size)
-        self.fc3 = nn.Linear(hidden_size, hidden_size)
+        self.fcs = nn.ModuleList(
+            [nn.Linear(hidden_size, hidden_size) for _ in range(n_linear)]
+        )
+
+        self.activation = nn.ReLU()
+
         self.fc_mean = nn.Linear(hidden_size, action_size)
         self.fc_std = nn.Linear(hidden_size, action_size)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = torch.relu(self.fc3(x))
+        x = self.activation(self.fc1(x))
+        for fc in self.fcs:
+            x = self.activation(fc(x))
+
         mean = self.fc_mean(x)
         std = self.fc_std(x)
         std = torch.exp(std)
@@ -48,9 +55,9 @@ class BasicPGAgent:
         self,
         env: ContinuousDamEnv,
         learning_rate: float = 1e-3,
-        epochs: int = 10,
+        epochs: int = 5,
         batch_size: int = 128,
-        discount_factor: float = 0.99,
+        discount_factor: float = 0.98,
     ):
         self.env = env
         self.state_size, *_ = env.observation_space.shape
@@ -62,9 +69,7 @@ class BasicPGAgent:
         self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate, weight_decay=1e-4
         )
-        self.scheduler = ReduceLROnPlateau(
-            self.optimizer, mode="min", factor=0.9, patience=5, verbose=True
-        )
+        self.scheduler = ReduceLROnPlateau(self.optimizer)
 
         self.epochs = epochs
         self.batch_size = batch_size
@@ -82,11 +87,10 @@ class BasicPGAgent:
         log_probs = torch.distributions.Normal(means, stds).log_prob(actions)
 
         # normalize advantages
-        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
-        advantages = advantages / (advantages.std() + 1e-8)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         # compute the loss for a policy agent
-        loss = -torch.mean(log_probs * advantages)
+        loss = torch.sum(-log_probs * advantages)
 
         return loss
 
@@ -98,9 +102,6 @@ class BasicPGAgent:
         advantages: torch.Tensor,
     ):
         self.policy_network = self.policy_network.to(DEVICE)
-
-        # TODO: check clamp
-        # states = torch.clamp(states, min=0, max=1)
 
         for _ in range(self.epochs):
             loss = self.calculate_loss(states, actions, rewards, advantages)
@@ -155,7 +156,7 @@ class BasicPGAgent:
                 rewards.append(reward)
                 state = next_state
 
-            advantages = self.calculate_advantage(rewards, self.gamma)
+            advantages = discounted_reward(rewards, self.gamma)
 
         return states, actions, rewards, advantages
 
@@ -203,10 +204,6 @@ class BasicPGAgent:
     def load(self, path: str | Path):
         self.policy_network.load_state_dict(torch.load(path, map_location=DEVICE))
 
-    def calculate_advantage(self, x, gamma):
-        adv = scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
-        return adv.copy()
-
 
 class PPOAgent:
     def __init__(
@@ -214,7 +211,7 @@ class PPOAgent:
         env: ContinuousDamEnv,
         learning_rate: float = 2.5e-4,
         clip_epsilon: float = 0.2,
-        epochs: int = 10,
+        epochs: int = 5,
         batch_size: int = 1024,
         discount_factor: float = 0.98,
         entropy_loss_coeff: float = 0.01,
@@ -226,16 +223,16 @@ class PPOAgent:
         self.policy_network = BasicPGNetwork(self.state_size, self.action_size).to(
             DEVICE
         )
-
-        # training parameters
-        # TODO: check we can just use Adam
-        self.optimizer = torch.optim.Adagrad(
+        self.optimizer = torch.optim.Adam(
             self.policy_network.parameters(), lr=learning_rate
         )
+        self.scheduler = ReduceLROnPlateau(self.optimizer)
+
+        # training parameters
         self.clip_epsilon = clip_epsilon
         self.epochs = epochs
         self.batch_size = batch_size
-        self.discount_factor = discount_factor
+        self.gamma = discount_factor
         self.entropy_loss_coeff = entropy_loss_coeff
 
     def get_action(self, state):
@@ -248,29 +245,28 @@ class PPOAgent:
 
         return action.item(), log_probs
 
-    def calculate_loss(self, states, actions, rewards, old_log_probs):
+    def calculate_loss(self, states, actions, rewards, advantages, old_log_probs):
         # action log probs ratio
         means, stds = self.policy_network(states)
         curr_dist = torch.distributions.Normal(means, stds)
         curr_log_probs = curr_dist.log_prob(actions)
 
-        log_prob_ratios = torch.exp(curr_log_probs - old_log_probs)
+        log_prob_ratios = torch.exp(curr_log_probs - old_log_probs.detach())
 
         curr_entropy = curr_dist.entropy()
 
         # normalized advantages
-        # advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
-        advantages = rewards / (rewards.std() + 1e-8)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
         # surrogates
         surr1 = advantages * log_prob_ratios
         surr2 = advantages * torch.clamp(
             log_prob_ratios, 1 - self.clip_epsilon, 1 + self.clip_epsilon
         )
-        surr_loss = torch.min(surr1, surr2)
+        surr_loss = -torch.min(surr1, surr2)
 
         # loss
-        loss = (-surr_loss - self.entropy_loss_coeff * curr_entropy).mean()
+        loss = torch.mean(surr_loss - self.entropy_loss_coeff * curr_entropy)
 
         return loss
 
@@ -279,14 +275,18 @@ class PPOAgent:
         states,
         actions,
         rewards,
+        advantages,
         old_log_probs,
     ):
         for _ in range(self.epochs):
-            loss = self.calculate_loss(states, actions, rewards, old_log_probs)
+            loss = self.calculate_loss(
+                states, actions, rewards, advantages, old_log_probs
+            )
             self.optimizer.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5)
             self.optimizer.step()
+            self.scheduler.step(loss)
 
             self._pbar.set_description(f"Loss: {loss.item():.3f}")
 
@@ -335,9 +335,9 @@ class PPOAgent:
                 old_log_probs.append(log_probs)
                 state = next_state
 
-            discounted_rewards = discounted_reward(rewards, self.discount_factor)
+            advantages = discounted_reward(rewards, self.gamma)
 
-        return states, actions, rewards, discounted_rewards, old_log_probs
+        return states, actions, rewards, advantages, old_log_probs
 
     def train(
         self,
@@ -352,7 +352,7 @@ class PPOAgent:
                 states,
                 actions,
                 rewards,
-                discounted_rewards,
+                advantages,
                 old_log_probs,
             ) = self.play_game()
 
@@ -360,7 +360,7 @@ class PPOAgent:
                 torch.tensor(states, device=DEVICE).float(),
                 torch.tensor(actions, device=DEVICE).float().unsqueeze(1),
                 torch.tensor(rewards, device=DEVICE).float(),
-                # torch.tensor(discounted_rewards, device=DEVICE).float(),
+                torch.tensor(advantages, device=DEVICE).float(),
                 torch.tensor(old_log_probs, device=DEVICE).float(),
             )
 
