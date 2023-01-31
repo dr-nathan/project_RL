@@ -16,12 +16,12 @@ val_env = HydroElectric_Test(path_to_test_data=args.val_file)
 discount_rate = 0.98
 batch_size = 32
 epsilon = 0.5  # overwritten if epsilon_decay is True
-epsilon_start = 0.9
+epsilon_start = 1
 epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-4
 env.len = env.price_values.shape[0] * env.price_values.shape[1]
-n_episodes = int(20 * env.len)  # number is how many times you run throuh the whole dataset
+n_episodes = int(50 * env.len)  # number is how many times you run throuh the whole dataset
 buffer_size = env.len
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7
@@ -44,6 +44,7 @@ dagent = DDQNAgent(
 if not args.train:
     dagent.training_loop(batch_size)
 
-total_reward = dagent.validate(val_env)
+total_reward, episode_data = dagent.validate(val_env)
 
+episode_data.debug_plot()
 print(f'Total reward: {total_reward}')

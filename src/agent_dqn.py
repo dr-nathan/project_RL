@@ -2,18 +2,16 @@ import copy
 from collections import deque
 from dataclasses import dataclass, field
 import datetime
-
 import numpy as np
 import pandas as pd
 from matplotlib import pyplot as plt
 from tqdm import tqdm
 import seaborn as sns
-import torch 
+import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as f
 import random
-
 from src.utils import cumsum, plt_col
 
 
@@ -182,8 +180,8 @@ class DDQNAgent:
 
             # get some statistics every time the agent has seen the whole dataset
             if (iteration+1) % self.env.len == 0:
-                data_train = self.validate(copy.deepcopy(self.original_env))
-                data_val = self.validate(copy.deepcopy(self.val_env))
+                data_train, _ = self.validate(copy.deepcopy(self.original_env))
+                data_val, _ = self.validate(copy.deepcopy(self.val_env))
                 train_rewards.append(data_train)
                 val_rewards.append(data_val)
 
@@ -271,7 +269,8 @@ class DDQNAgent:
 
     def validate(self, env):
         # assumes that the environment is reset
-        state = env.state
+        self.episode_data = DamEpisodeData()
+        state, *_ = env.step(0)
 
         # play until episode is terminated
         total_reward = 0
@@ -280,24 +279,28 @@ class DDQNAgent:
             action = self.choose_action(state, "greedy")
             next_state, reward, terminated, _, *_ = env.step(action)
             total_reward += reward
+            self.episode_data.add(
+                datetime.datetime(int(state[6]), 1, 1) +  # year
+                datetime.timedelta(days=int(state[4]) - 1, hours=int(state[2])),  # day of the year + hour
+                state[0],
+                action,
+                action * env.max_flow,
+                state[1],
+                reward
+            )
             state = next_state
+        if self.DEBUG:
+            self.episode_data.debug_plot()
 
-        return total_reward
+        return total_reward, self.episode_data
 
     def reset_env(self):
 
         self.env = copy.deepcopy(self.original_env)
         self.env.reset(seed=self.seed)  # TODO: check if necessary
+        self.episode_data = DamEpisodeData()
         # make fake action to get the first state
         state, _, _, _, _ = self.env.step(0)
-
-        return state
-
-    @staticmethod
-    def augment_state(state):
-        # only keep 3 first features
-        state = state[:3]
-        # TODO: add the other features
 
         return state
 
@@ -317,6 +320,14 @@ class DDQNAgent:
         state[4] = state[4] / 365
         state[5] = state[5] / 12
         state = self.augment_state(state)
+
+        return state
+
+    @staticmethod
+    def augment_state(state):
+        # only keep 3 first features
+        state = state[:3]
+        # TODO: add the other features
 
         return state
 
