@@ -19,9 +19,9 @@ class DQN(nn.Module):
         input_features, *_ = env.state.shape
         action_space = env.discrete_action_space.n
 
-        self.dense1 = nn.Linear(in_features=input_features, out_features=32)
+        self.dense1 = nn.Linear(in_features=input_features, out_features=64)
         # self.dense2 = nn.Linear(in_features=128, out_features=64)
-        # self.dense3 = nn.Linear(in_features=64, out_features=32)
+        self.dense3 = nn.Linear(in_features=64, out_features=32)
         self.dense4 = nn.Linear(in_features=32, out_features=action_space)
 
         # Here we use ADAM, but you could also think of other algorithms such as RMSprob
@@ -31,7 +31,7 @@ class DQN(nn.Module):
 
         x = torch.relu(self.dense1(x))
         # x = torch.relu(self.dense2(x))
-        # x = torch.relu(self.dense3(x))
+        x = torch.relu(self.dense3(x))
         x = self.dense4(x)
 
         return x
@@ -83,11 +83,11 @@ class ExperienceReplay:
         transitions = random.sample(self.replay_buffer, batch_size)
 
         # convert to array where needed, then to tensor (faster than directly to tensor)
-        observations = [t[0] for t in transitions]
+        observations = np.asarray([t[0] for t in transitions])
         actions = np.asarray([t[1] for t in transitions])
-        rewards = [t[2] for t in transitions]
+        rewards = np.asarray([t[2] for t in transitions])
         dones = np.asarray([t[3] for t in transitions])
-        new_observations = [t[4] for t in transitions]
+        new_observations = np.asarray([t[4] for t in transitions])
 
         # normalize rewards
         # rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))
@@ -265,6 +265,9 @@ class DDQNAgent:
         target_q_values = self.target_network.forward(new_observations_t)
         max_target_q_values = target_q_values.max(dim=1, keepdim=True)[0]
 
+        # normalize rewards
+        rewards_t = (rewards_t - rewards_t.mean()) / (rewards_t.std() + 1e-9)
+
         targets = rewards_t + self.discount_rate * (1 - dones_t) * max_target_q_values
 
         # Compute loss
@@ -280,6 +283,7 @@ class DDQNAgent:
         self.online_network.optimizer.step()
 
     def validate(self, env):
+
         # reset the environment
         state = env.reset()
 
@@ -293,9 +297,9 @@ class DDQNAgent:
             total_reward += reward
             state = next_state
         if self.DEBUG:
-            self.env.episode_data.debug_plot()
+            env.episode_data.debug_plot()
 
-        return total_reward, self.env.episode_data
+        return total_reward, env.episode_data
 
 
 def plot_rewards(train_rewards, val_rewards):

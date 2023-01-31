@@ -454,16 +454,19 @@ class TestEnvWrapper:
 
     def _preprocess_state(self, state: np.ndarray):
         # we only care about the first three features from the state
-        processed_state = state[:3]
+        processed_state = state[:5]
         processed_state[0] /= self.env.max_volume
         processed_state[1] /= 200
         processed_state[2] /= 24
+        processed_state[3] /= 6
+        processed_state[4] /= 364
 
-        # TOOD: add our own features
+        # TODO: add our own features
 
         return processed_state
 
-    def _action_to_env(self, action: int | float | bool):
+    @staticmethod
+    def _action_to_env(action: int | float | bool):
         # 1 = empty / sell
         if action == 1:
             return -1
@@ -473,7 +476,8 @@ class TestEnvWrapper:
         # 0 = do nothing
         return 0
 
-    def _env_to_action(self, action: int | float | bool):
+    @staticmethod
+    def _env_to_action(action: int | float | bool):
         # 1 = empty / sell
         if action == -1:
             return 1
@@ -484,4 +488,5 @@ class TestEnvWrapper:
         return 0
 
     def __len__(self):
-        return len(self.env.timestamps)
+        return len(self.env.timestamps) * 24 # timestamps is amount of rows in csv (1096),
+        # so multiply by 24 to get total amount of timesteps

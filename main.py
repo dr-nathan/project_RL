@@ -18,16 +18,15 @@ env_wrapped = TestEnvWrapper(env)
 val_env_wrapped = TestEnvWrapper(val_env)
 
 # load the DQN agent
-discount_rate = 0.995
+discount_rate = 0.99
 batch_size = 32
 epsilon = 0.5  # overwritten if epsilon_decay is True
 epsilon_start = 1
 epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-4
-env.len = env.price_values.shape[0] * env.price_values.shape[1]
-n_episodes = int(20 * env.len)  # number is how many times you run throuh the whole dataset
-buffer_size = env.len
+n_episodes = int(30 * len(env_wrapped))  # number is how many times you run throuh the whole dataset
+buffer_size = len(env_wrapped)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7
 
@@ -49,7 +48,7 @@ dagent = DDQNAgent(
 if not args.train:
     dagent.training_loop(batch_size)
 
-total_reward, episode_data = dagent.validate(val_env)
+total_reward, episode_data = dagent.validate(val_env_wrapped)
 
 episode_data.debug_plot()
 print(f'Total reward: {total_reward}')
