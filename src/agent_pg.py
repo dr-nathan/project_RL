@@ -1,13 +1,14 @@
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
 import torch
 from torch import nn
 from tqdm import tqdm
-
+import scipy
 from src.environment import ContinuousDamEnv
 from src.utils import discounted_reward
+
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 DEVICE = torch.device(
     "cuda"
@@ -17,13 +18,8 @@ DEVICE = torch.device(
     else "cpu"
 )
 
-# it's generally actually not beneficial to use a GPU for this, as steps are not taken in parallel
-# so single-core performance is more important. during backpropagation a GPU can be faster, but the
-# overhead of copying data to and from the GPU is not worth it
-# DEVICE = torch.device("cpu")
 
 print(f"{DEVICE = }")
-
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -32,16 +28,18 @@ class BasicPGNetwork(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(state_size, hidden_size)
         self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, hidden_size)
         self.fc_mean = nn.Linear(hidden_size, action_size)
         self.fc_std = nn.Linear(hidden_size, action_size)
 
     def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
+        x = torch.relu(self.fc1(x))
+        x = torch.relu(self.fc2(x))
+        x = torch.relu(self.fc3(x))
         mean = self.fc_mean(x)
         std = self.fc_std(x)
         std = torch.exp(std)
-        std = torch.clamp(std, min=1e-4)  # std cannot be < 0
+        std = torch.clamp(std, min=1e-8)  # std cannot be < 0
         return mean, std
 
 
@@ -49,18 +47,23 @@ class BasicPGAgent:
     def __init__(
         self,
         env: ContinuousDamEnv,
-        learning_rate: float = 2.5e-4,
+        learning_rate: float = 1e-3,
         epochs: int = 10,
-        batch_size: int = 1024,
+        batch_size: int = 128,
         discount_factor: float = 0.99,
     ):
         self.env = env
         self.state_size, *_ = env.observation_space.shape
         self.action_size, *_ = env.action_space.shape
 
-        self.policy_network = BasicPGNetwork(self.state_size, self.action_size)
-        self.optimizer = torch.optim.Adagrad(
-            self.policy_network.parameters(), lr=learning_rate
+        self.policy_network = BasicPGNetwork(self.state_size, self.action_size).to(
+            DEVICE
+        )
+        self.optimizer = torch.optim.Adam(
+            self.policy_network.parameters(), lr=learning_rate, weight_decay=1e-4
+        )
+        self.scheduler = ReduceLROnPlateau(
+            self.optimizer, mode="min", factor=0.9, patience=5, verbose=True
         )
 
         self.epochs = epochs
@@ -72,16 +75,18 @@ class BasicPGAgent:
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
+        advantages: torch.Tensor,
     ):
         # compute the probabilities of the actions taken under the current policy
         means, stds = self.policy_network(states)
         log_probs = torch.distributions.Normal(means, stds).log_prob(actions)
 
-        # normalized advantages
-        advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        # normalize advantages
+        # advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        advantages = advantages / (advantages.std() + 1e-8)
 
-        # compute the loss
-        loss = -(log_probs * advantages).sum()
+        # compute the loss for a policy agent
+        loss = -torch.mean(log_probs * advantages)
 
         return loss
 
@@ -90,37 +95,48 @@ class BasicPGAgent:
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
+        advantages: torch.Tensor,
     ):
+        self.policy_network = self.policy_network.to(DEVICE)
+
+        # TODO: check clamp
+        # states = torch.clamp(states, min=0, max=1)
+
         for _ in range(self.epochs):
-            loss = self.calculate_loss(states, actions, rewards)
+            loss = self.calculate_loss(states, actions, rewards, advantages)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+            self.scheduler.step(loss)
 
             self._pbar.set_description(f"Loss: {loss.item():.4f}")
 
+            # TODO: check without minibatching
             # indexes = torch.randperm(len(states))
             # epoch_losses = []
 
-            # # TODO: check without minibatching
             # for start in range(0, len(states), self.batch_size):
             #     batch_indexes = indexes[start : start + self.batch_size]
 
             #     batch_states = states[batch_indexes]
             #     batch_actions = actions[batch_indexes]
             #     batch_rewards = rewards[batch_indexes]
+            #     batch_advantages = advantages[batch_indexes]
 
             #     self.policy_network = self.policy_network.to(DEVICE)
 
-            #     loss = self.calculate_loss(batch_states, batch_actions, batch_rewards)
+            #     loss = self.calculate_loss(
+            #         batch_states, batch_actions, batch_rewards, batch_advantages
+            #     )
             #     self.optimizer.zero_grad()
-            #     # loss.requires_grad = True
             #     loss.backward()
             #     self.optimizer.step()
 
             #     epoch_losses.append(loss.item())
 
-            # self._pbar.set_description(f"Loss: {np.mean(epoch_losses):.4f}")
+            # loss_mean = sum(epoch_losses) / len(epoch_losses)
+            # self.scheduler.step(loss_mean)
+            # self._pbar.set_description(f"Loss: {loss_mean:.3f}")
 
     def play_game(self):
         with torch.no_grad():
@@ -139,20 +155,21 @@ class BasicPGAgent:
                 rewards.append(reward)
                 state = next_state
 
-            discounted_rewards = discounted_reward(rewards, self.gamma)
+            advantages = self.calculate_advantage(rewards, self.gamma)
 
-        return states, actions, rewards, discounted_rewards
+        return states, actions, rewards, advantages
 
     def train(
-        self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 1
+        self, n_episodes: int, save_path: None | Path = None, save_frequency: int = 5
     ):
         self._pbar = tqdm(range(n_episodes))
         for i in self._pbar:
-            states, actions, rewards, discounted_rewards = self.play_game()
+            states, actions, rewards, advantages = self.play_game()
             self.update_policy(
                 torch.tensor(states, device=DEVICE).float(),
                 torch.tensor(actions, device=DEVICE).float().unsqueeze(1),
-                torch.tensor(discounted_rewards, device=DEVICE).float(),
+                torch.tensor(rewards, device=DEVICE).float(),
+                torch.tensor(advantages, device=DEVICE).float(),
             )
 
             if save_path is not None and i % save_frequency == 0:
@@ -169,6 +186,7 @@ class BasicPGAgent:
         return action.item()
 
     def validate(self, price_data: dict[datetime, float]):
+        self.policy_network = self.policy_network.cpu()
         state, _ = self.env.reset(price_data=price_data)
         terminated = False
 
@@ -184,6 +202,10 @@ class BasicPGAgent:
 
     def load(self, path: str | Path):
         self.policy_network.load_state_dict(torch.load(path, map_location=DEVICE))
+
+    def calculate_advantage(self, x, gamma):
+        adv = scipy.signal.lfilter([1], [1, float(-gamma)], x[::-1], axis=0)[::-1]
+        return adv.copy()
 
 
 class PPOAgent:
@@ -237,7 +259,8 @@ class PPOAgent:
         curr_entropy = curr_dist.entropy()
 
         # normalized advantages
-        advantages = (rewards - rewards.mean()) / rewards.std() + 1e-8
+        # advantages = (rewards - rewards.mean()) / (rewards.std() + 1e-8)
+        advantages = rewards / (rewards.std() + 1e-8)
 
         # surrogates
         surr1 = advantages * log_prob_ratios
@@ -247,7 +270,7 @@ class PPOAgent:
         surr_loss = torch.min(surr1, surr2)
 
         # loss
-        loss = (-surr_loss - self.entropy_loss_coeff * curr_entropy).sum()
+        loss = (-surr_loss - self.entropy_loss_coeff * curr_entropy).mean()
 
         return loss
 
