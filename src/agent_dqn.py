@@ -24,7 +24,7 @@ class DQN(nn.Module):
         super().__init__()
         self.seed = torch.manual_seed(seed)
         # NV: get the input features selected by agent
-        input_features, *_ = agent.augment_state(env.state).shape
+        input_features, *_ = env.state.shape
         action_space = env.discrete_action_space.n
         
         self.dense1 = nn.Linear(in_features=input_features, out_features=32)
@@ -96,9 +96,6 @@ class ExperienceReplay:
         dones = np.asarray([t[3] for t in transitions])
         new_observations = [t[4] for t in transitions]
 
-        # preprocess observations (normalize, select features)
-        observations = np.asarray([self.agent.preprocess_state(obs) for obs in observations])
-        new_observations = np.asarray([self.agent.preprocess_state(obs) for obs in new_observations])
         # rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
 
         observations_t = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
@@ -155,7 +152,7 @@ class DDQNAgent:
     def training_loop(self, batch_size):
 
         # reset the environment
-        state = self.env.reset_env()
+        state = self.env.reset()
 
         train_rewards = []
         val_rewards = []
@@ -180,7 +177,7 @@ class DDQNAgent:
                 self.target_network.load_state_dict(self.online_network.state_dict())
 
             # get some statistics every time the agent has seen the whole dataset
-            if (iteration+1) % self.env.len == 0:
+            if (iteration+1) % len(self.env) == 0:
                 data_train, _ = self.validate(copy.deepcopy(self.env))
                 data_val, _ = self.validate(copy.deepcopy(self.val_env))
                 train_rewards.append(data_train)
@@ -242,7 +239,7 @@ class DDQNAgent:
         # Compute loss
         self.online_network.train()
         q_values = self.online_network.forward(observations_t)
-        action_q_values = torch.gather(input=q_values, dim=1, index=actions_t.unsqueeze(-1))
+        action_q_values = torch.gather(input=q_values, dim=1, index=actions_t)
         # loss = F.mse_loss(action_q_values, targets)
         loss = f.smooth_l1_loss(action_q_values, targets)
 

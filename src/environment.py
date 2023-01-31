@@ -1,7 +1,7 @@
 from copy import deepcopy
 import random
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 import gymnasium as gym
@@ -407,14 +407,19 @@ class TestEnvWrapper:
         self._base_env = deepcopy(env)
         self.env = env
 
+        self.discrete_action_space = env.discrete_action_space
+        self.continuous_action_space = env.continuous_action_space
+
         self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
+        self.state = self._get_current_state()
 
     def reset(self):
         self.episode_data = DamEpisodeData()
         self.env = deepcopy(self._base_env)
 
         self.current_date = self._get_current_date()
+        self.state = self._get_current_state()
 
         state = self.env.observation()
         processed_state = self._preprocess_state(state)
@@ -438,19 +443,23 @@ class TestEnvWrapper:
 
         return processed_state, reward, terminated, truncated, info
 
+    def _get_current_state(self):
+        state = self.env.state
+        return self._preprocess_state(state)
+
     def _get_current_date(self) -> datetime:
-        return self.env.timestamps[self.env.day - 1]
+        curr_date = self.env.timestamps[self.env.day - 1]
+        curr_date += timedelta(hours=self.env.hour)
+        return curr_date
 
-    def _preprocess_state(self, state):
+    def _preprocess_state(self, state: np.ndarray):
         # we only care about the first three features from the state
-        processed_state = (
-            state[0] / self.env.max_volume,
-            state[1] / 200,
-            state[2] / 24,
-        )
+        processed_state = state[:3]
+        processed_state[0] /= self.env.max_volume
+        processed_state[1] /= 200
+        processed_state[2] /= 24
 
-        # TOOD: add our own features, e.g.
-        # processed_state = (*state, self._is_winter(), self._is_weekend())
+        # TOOD: add our own features
 
         return processed_state
 
@@ -473,3 +482,6 @@ class TestEnvWrapper:
             return 2
         # 0 = do nothing
         return 0
+
+    def __len__(self):
+        return len(self.env.timestamps)
