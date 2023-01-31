@@ -1,6 +1,7 @@
+from copy import deepcopy
 import random
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
 import gymnasium as gym
@@ -12,6 +13,7 @@ from gymnasium import spaces
 
 from src.utils import cumsum, joule_to_mwh, plt_col
 from src.lstm import LSTM_price
+from src.TestEnv import HydroElectric_Test
 
 
 @dataclass
@@ -19,11 +21,11 @@ class DamEpisodeData:
     """Dataclass to store episode data for a dam environment"""
 
     date: list[datetime] = field(default_factory=list)
-    storage: list[float] = field(default_factory=list)
-    action: list[float] = field(default_factory=list)
-    flow: list[float] = field(default_factory=list)
-    price: list[float] = field(default_factory=list)
-    reward: list[float] = field(default_factory=list)
+    storage: list[float | None] = field(default_factory=list)
+    action: list[float | None] = field(default_factory=list)
+    flow: list[float | None] = field(default_factory=list)
+    price: list[float | None] = field(default_factory=list)
+    reward: list[float | None] = field(default_factory=list)
     reward_cumulative = property(lambda self: cumsum(self.reward))
     total_reward = property(lambda self: sum(self.reward))
 
@@ -33,11 +35,11 @@ class DamEpisodeData:
     def add(
         self,
         date: datetime,
-        storage: float,
-        action: float,
-        flow: float,
-        price: float,
-        reward: float,
+        storage: float | None = None,
+        action: float | None = None,
+        flow: float | None = None,
+        price: float | None = None,
+        reward: float | None = None,
     ):
         self.date.append(date)
         self.storage.append(storage)
@@ -344,8 +346,8 @@ class ContinuousDamEnv(DamEnvBase):
             self.current_date.hour / 24,
             self.current_price / 200,  # self.max_price
             self.stored_energy / self.max_stored_energy,
-            #self._is_winter(),
-            #self._is_weekend(),
+            # self._is_winter(),
+            # self._is_weekend(),
             self._mean_window(24) / 200,
             self._cov_window(24),  # COV is normalized std
             # self._volatility_window(24)
@@ -374,7 +376,7 @@ class ContinuousDamEnv(DamEnvBase):
         std = self._std_window(window_size)
         return std * np.sqrt(window_size)
 
-    def _lstm_predict_next(self, window_size, future) :
+    def _lstm_predict_next(self, window_size, future):
         lstm = LSTM_price()
         window = self.price_history[-window_size:]
         return lstm.predict(window_size, future, window)
@@ -399,3 +401,87 @@ class DiscreteContinuousDamEnv(ContinuousDamEnv):
         # do nothing, i.e. action == 0 (default)
         return 0.0
 
+
+class TestEnvWrapper:
+    def __init__(self, env: HydroElectric_Test):
+        self._base_env = deepcopy(env)
+        self.env = env
+
+        self.discrete_action_space = env.discrete_action_space
+        self.continuous_action_space = env.continuous_action_space
+
+        self.episode_data = DamEpisodeData()
+        self.current_date = self._get_current_date()
+        self.state = self._get_current_state()
+
+    def reset(self):
+        self.episode_data = DamEpisodeData()
+        self.env = deepcopy(self._base_env)
+
+        self.current_date = self._get_current_date()
+        self.state = self._get_current_state()
+
+        state = self.env.observation()
+        processed_state = self._preprocess_state(state)
+
+        return processed_state
+
+    def step(self, action: int | float | bool):
+        action = self._action_to_env(action)
+
+        state, reward, terminated, truncated, info = self.env.step(action)
+        self.current_date = self._get_current_date()
+        processed_state = self._preprocess_state(state)
+
+        self.episode_data.add(
+            date=self.current_date,
+            storage=state[0],
+            action=action,
+            price=state[1],
+            reward=reward,
+        )
+
+        return processed_state, reward, terminated, truncated, info
+
+    def _get_current_state(self):
+        state = self.env.state
+        return self._preprocess_state(state)
+
+    def _get_current_date(self) -> datetime:
+        curr_date = self.env.timestamps[self.env.day - 1]
+        curr_date += timedelta(hours=self.env.hour)
+        return curr_date
+
+    def _preprocess_state(self, state: np.ndarray):
+        # we only care about the first three features from the state
+        processed_state = state[:3]
+        processed_state[0] /= self.env.max_volume
+        processed_state[1] /= 200
+        processed_state[2] /= 24
+
+        # TOOD: add our own features
+
+        return processed_state
+
+    def _action_to_env(self, action: int | float | bool):
+        # 1 = empty / sell
+        if action == 1:
+            return -1
+        # 2 = fill / buy
+        if action == 2:
+            return 1
+        # 0 = do nothing
+        return 0
+
+    def _env_to_action(self, action: int | float | bool):
+        # 1 = empty / sell
+        if action == -1:
+            return 1
+        # 2 = fill / buy
+        if action == 1:
+            return 2
+        # 0 = do nothing
+        return 0
+
+    def __len__(self):
+        return len(self.env.timestamps)
