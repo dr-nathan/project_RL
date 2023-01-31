@@ -21,7 +21,7 @@ class DQN(nn.Module):
 
         super().__init__()
         self.seed = torch.manual_seed(seed)
-        # NV: allows to automatically get the input features selected by agent
+        # NV: get the input features selected by agent
         input_features, *_ = agent.augment_state(env.state).shape
         action_space = env.discrete_action_space.n
         
@@ -54,6 +54,7 @@ class ExperienceReplay:
         min_replay_size = min number of (random) transitions that the replay buffer needs to have when initialized
         seed = seed for random number generator for reproducibility
         """
+
         self.agent = agent
         self.seed = seed
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -97,7 +98,7 @@ class ExperienceReplay:
         # preprocess observations (normalize, select features)
         observations = np.asarray([self.agent.preprocess_state(obs) for obs in observations])
         new_observations = np.asarray([self.agent.preprocess_state(obs) for obs in new_observations])
-        rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
+        # rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
 
         observations_t = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
         actions_t = torch.as_tensor(actions, dtype=torch.int64, device=self.device).unsqueeze(-1)
@@ -249,14 +250,12 @@ class DDQNAgent:
         # sampler also takes care of normalizing the features + rewards and converting to tensors
         observations_t, actions_t, rewards_t, dones_t, new_observations_t = self.replay_memory.sample(batch_size)
 
-        self.target_network.eval()
         target_q_values = self.target_network.forward(new_observations_t)
         max_target_q_values = target_q_values.max(dim=1, keepdim=True)[0]
 
         targets = rewards_t + self.discount_rate * (1 - dones_t) * max_target_q_values
 
         # Compute loss
-        self.online_network.train()
         q_values = self.online_network.forward(observations_t)
         actions_t = self.encode_decode_actions(actions_t, "encode")
         action_q_values = torch.gather(input=q_values, dim=1, index=actions_t.unsqueeze(-1))
@@ -282,7 +281,7 @@ class DDQNAgent:
             total_reward += reward
             self.episode_data.add(
                 datetime.datetime(int(state[6]), 1, 1) +  # year
-                datetime.timedelta(days=int(state[4]) - 1, hours=int(state[2])),  # day of the year + hour
+                datetime.timedelta(days=int(state[4]), hours=int(state[2])),  # day of the year + hour
                 state[0],
                 action,
                 action * env.max_flow,
@@ -308,8 +307,13 @@ class DDQNAgent:
     @staticmethod
     def encode_decode_actions(action, direction):
         if direction == "encode":
+            if any(a == 2 for a in action):
+                raise ValueError("Action should be -1, 0 or 1")
             return torch.as_tensor(np.asarray([1 if a == -1 else 2 if a == 1 else 0 for a in action]))
+
         elif direction == "decode":
+            if action == -1:
+                raise ValueError("Action should be 0, 1 or 2")
             return -1 if action == 1 else 1 if action == 2 else 0
         # TODO: find a fix for this, ew
 
@@ -320,6 +324,7 @@ class DDQNAgent:
         state[3] = state[3] / 7
         state[4] = state[4] / 365
         state[5] = state[5] / 12
+
         state = self.augment_state(state)
 
         return state

@@ -59,7 +59,7 @@ class HydroElectric_Test(gym.Env):
         if self.counter % 24 == 0:  # If the counter is a multiple of 24, increase the day, reset hour to first hour
             self.day += 1
             self.hour = 1
-        if self.counter == len(self.price_values.flatten())-1:  # If the counter is equal to the number of hours in the test data, terminate the episode
+        if self.counter == len(self.price_values.flatten())-1:  #  If the counter is equal to the number of hours in the test data, terminate the episode
             terminated = True
             truncated = True
         else:  # If the counter is not equal to the number of hours in the test data, continue the episode
