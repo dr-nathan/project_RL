@@ -21,7 +21,7 @@ class DQN(nn.Module):
 
         super().__init__()
         self.seed = torch.manual_seed(seed)
-        # NV: allows to automatically get the input features selected by agent
+        # NV: get the input features selected by agent
         input_features, *_ = agent.augment_state(env.state).shape
         action_space = env.discrete_action_space.n
         
@@ -54,6 +54,7 @@ class ExperienceReplay:
         min_replay_size = min number of (random) transitions that the replay buffer needs to have when initialized
         seed = seed for random number generator for reproducibility
         """
+
         self.agent = agent
         self.seed = seed
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -97,7 +98,7 @@ class ExperienceReplay:
         # preprocess observations (normalize, select features)
         observations = np.asarray([self.agent.preprocess_state(obs) for obs in observations])
         new_observations = np.asarray([self.agent.preprocess_state(obs) for obs in new_observations])
-        rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
+        # rewards = np.asarray((rewards - np.mean(rewards)) / (np.std(rewards) + 1e-8))  # normalize rewards
 
         observations_t = torch.as_tensor(observations, dtype=torch.float32, device=self.device)
         actions_t = torch.as_tensor(actions, dtype=torch.int64, device=self.device).unsqueeze(-1)
