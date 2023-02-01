@@ -31,7 +31,7 @@ class LSTM_price:
         self.window_size = 24
         self.future = 24
         self.epochs = 10
-        self.trained_filepath = Path(__file__).parent / "pretrained" / "price_lstm.pt"
+        self.trained_filepath = Path(__file__).parent / "price_lstm.pt"
 
     def input_data(self, seq, ws):
         out = []

@@ -9,7 +9,7 @@ import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
 
-from src.environment import DiscreteDamEnv
+from src.environment.dam import DiscreteDamEnv
 
 
 class QLearnAgent:
@@ -86,7 +86,7 @@ class QLearnAgent:
 
         for episode in tqdm(range(n_episodes)):
             # reset environment
-            state,_ = self.env.reset(
+            state, _ = self.env.reset(
                 random_startpoint=random_startpoint, start_amount=start_amount
             )
 

@@ -7,7 +7,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 
-from src.environment import ContinuousDamEnv
+from src.environment.dam import ContinuousDamEnv
 from src.utils import discounted_reward
 
 DEVICE = torch.device(
@@ -67,8 +67,9 @@ class PGAgentBase:
             mean, std = self.policy_network(state)
             dist = torch.distributions.Normal(mean, std)
             action = dist.sample()
+            log_probs = dist.log_prob(action)
 
-        return action.item()
+        return action.item(), log_probs
 
     def validate(self, price_data: dict[datetime, float]):
         self.policy_network = self.policy_network.cpu()
@@ -76,7 +77,7 @@ class PGAgentBase:
         terminated = False
 
         while not terminated:
-            action = self.get_action(state)
+            action, *_ = self.get_action(state)
             next_state, _, terminated, *_ = self.env.step(action)
             state = next_state
 
@@ -161,7 +162,7 @@ class BasicPGAgent(PGAgentBase):
             states, actions, rewards = [], [], []
 
             while not terminated:
-                action = self.get_action(state)
+                action, *_ = self.get_action(state)
                 next_state, reward, terminated, *_ = self.env.step(action)
 
                 states.append(state)
@@ -214,16 +215,6 @@ class PPOAgent(PGAgentBase):
         self.entropy_loss_coeff = entropy_loss_coeff
         self.epochs = epochs
         self.gamma = discount_factor
-
-    def get_action(self, state):
-        with torch.no_grad():
-            state = torch.tensor(state).float().unsqueeze(0)
-            mean, std = self.policy_network(state)
-            dist = torch.distributions.Normal(mean, std)
-            action = dist.sample()
-            log_probs = dist.log_prob(action)
-
-        return action.item(), log_probs
 
     def calculate_loss(
         self,

@@ -4,7 +4,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import torch
 
-from src.agent_pg import DEVICE, BasicPGNetwork
+from src.agent.pg import DEVICE, BasicPGNetwork
 
 filepath = Path(__file__).parent / "PG" / "nobatch_lmean.pt"
 net = BasicPGNetwork(2, 1, 5, 2).to(DEVICE)

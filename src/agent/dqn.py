@@ -1,4 +1,5 @@
 import copy
+from pathlib import Path
 import random
 from collections import deque
 
@@ -15,8 +16,8 @@ class DQN(nn.Module):
         super().__init__()
         self.seed = torch.manual_seed(seed)
         # NV: get the input features selected by agent
-        input_features, *_ = env.state.shape
-        action_space = env.discrete_action_space.n
+        input_features, *_ = env.observation_space.shape
+        action_space = env.action_space.n
 
         self.dense1 = nn.Linear(in_features=input_features, out_features=64)
         # self.dense2 = nn.Linear(in_features=128, out_features=64)
@@ -60,7 +61,7 @@ class ExperienceReplay:
         Fills the replay memory with random transitions.
         """
 
-        state = self.agent.env.reset()
+        state,_ = self.agent.env.reset()
 
         for i in range(self.min_replay_size):
 
@@ -73,7 +74,7 @@ class ExperienceReplay:
             state = next_state
 
             if terminated or truncated:
-                state = self.agent.reset_env()
+                state,_ = self.agent.reset_env()
 
     def sample(self, batch_size: int):
 
@@ -158,10 +159,9 @@ class DDQNAgent:
         )
         self.target_network.load_state_dict(self.online_network.state_dict())
 
-    def training_loop(self, batch_size: int):
-
+    def training_loop(self, batch_size:int, save_path:Path|None=None):
         # reset the environment
-        state = self.env.reset()
+        state,_ = self.env.reset()
 
         train_rewards = []
         val_rewards = []
@@ -192,6 +192,10 @@ class DDQNAgent:
                 train_rewards.append(data_train)
                 val_rewards.append(data_val)
 
+                # Save the model if the validation reward is the best so far
+                if save_path and (val_rewards or data_val > max(val_rewards)):
+                    torch.save(self.online_network.state_dict(), save_path)
+
         plot_rewards(train_rewards, val_rewards)
         plot_nn_weights(self.online_network)
         if self.DEBUG:
@@ -211,21 +215,21 @@ class DDQNAgent:
         state = next_state
 
         if terminated:
-            state = self.env.reset()
+            state,_ = self.env.reset()
 
         return state, action, reward
 
     def choose_action(self, state: np.ndarray, policy: str):
         state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
         if policy == "random":
-            return self.env.discrete_action_space.sample()
+            return self.env.action_space.sample()
 
         if policy == "greedy":
             return self.online_network.forward(state).argmax().item()
 
         if policy == "epsilon_greedy":
             if random.random() < self.epsilon:
-                return self.env.discrete_action_space.sample()
+                return self.env.action_space.sample()
 
             return self.online_network.forward(state).argmax().item()
 
@@ -274,7 +278,7 @@ class DDQNAgent:
     def validate(self, env):
 
         # reset the environment
-        state = env.reset()
+        state,_ = env.reset()
 
         # play until episode is terminated
         total_reward = 0
@@ -290,6 +294,13 @@ class DDQNAgent:
 
         return total_reward, env.episode_data
 
+    def save(self, path: Path):
+        torch.save(self.online_network.state_dict(), path)
+
+    def load(self, path: Path):
+        self.online_network.load_state_dict(torch.load(path, map_location=self.device))
+        self.target_network.load_state_dict(self.online_network.state_dict())
+
 
 def plot_rewards(train_rewards, val_rewards):
     plt.plot(train_rewards, label="train")
@@ -303,7 +314,7 @@ def plot_rewards(train_rewards, val_rewards):
 
 # to get feature importance
 def plot_nn_weights(model):
-    weights = model.dense1.weight.detach().numpy()
+    weights = model.dense1.weight.cpu().detach().numpy()
     # get absolute mean of weights
     weights = np.abs(weights).mean(axis=0)
     fig, ax = plt.subplots()

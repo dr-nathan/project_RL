@@ -11,8 +11,8 @@ import pandas as pd
 import seaborn as sns
 from gymnasium import spaces
 
-from src.TestEnv import HydroElectric_Test
-from src.lstm import LSTM_price
+from src.environment.lstm import LSTM_price
+from src.environment.TestEnv import HydroElectric_Test
 from src.utils import cumsum, joule_to_mwh, plt_col
 
 
@@ -409,8 +409,7 @@ class TestEnvWrapper:
         self._base_env = deepcopy(env)
         self.env = env
 
-        self.discrete_action_space = env.discrete_action_space
-        self.continuous_action_space = env.continuous_action_space
+        self.action_space = env.discrete_action_space
 
         self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
@@ -430,7 +429,7 @@ class TestEnvWrapper:
         # state = self.env.observation() # FIXME: _get_current_state already preprocesses state i think?
         # processed_state = self._preprocess_state(state)
 
-        return state  # processed_state
+        return state, {}
 
     def step(self, action: int | float | bool):
         action = self._action_to_env(action)

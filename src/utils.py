@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 
 
-# convert dateframe
 def convert_dataframe(df: pd.DataFrame) -> dict[datetime, float]:
     df = (
         df.rename(columns={"PRICES": "date"})
