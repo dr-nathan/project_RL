@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as f
 from matplotlib import pyplot as plt
+import matplotlib.patches as mpatches
 from torch import nn, optim
 from tqdm import tqdm
 
@@ -15,7 +16,7 @@ class DQN(nn.Module):
         super().__init__()
         self.seed = torch.manual_seed(seed)
         # NV: get the input features selected by agent
-        input_features, *_ = env.observation_space.shape # TODO: make sure this uses preprocessed state
+        input_features, *_ = env.observation_space.shape  # TODO: make sure this uses preprocessed state
         action_space = env.action_space.n
 
         self.dense1 = nn.Linear(in_features=input_features, out_features=64)
@@ -60,7 +61,7 @@ class ExperienceReplay:
         Fills the replay memory with random transitions.
         """
 
-        state,_ = self.agent.env.reset()
+        state, _ = self.agent.env.reset()
 
         for i in range(self.min_replay_size):
 
@@ -201,6 +202,8 @@ class DDQNAgent:
             plt.plot(epsilons)
             plt.show()
 
+        self.visualize_features()
+
     def play_action(self, state: np.ndarray):
 
         action = self.choose_action(state, "epsilon_greedy")
@@ -264,8 +267,10 @@ class DDQNAgent:
         self.online_network.train()
         q_values = self.online_network.forward(observations_t)
         action_q_values = torch.gather(input=q_values, dim=1, index=actions_t)
-        # loss = F.mse_loss(action_q_values, targets)
-        loss = f.smooth_l1_loss(action_q_values, targets)
+        # l1_reg =sum(p.abs().sum() for p in self.online_network.parameters())
+        # loss = f.mse_loss(action_q_values, targets) + 0.01 * l1_reg
+        loss = f.smooth_l1_loss(action_q_values, targets)  # Huber loss
+        # loss = f.l1_loss(action_q_values, targets)
 
         # Gradient descent to update the weights of the neural network
         self.online_network.optimizer.zero_grad()
@@ -300,91 +305,121 @@ class DDQNAgent:
 
     def visualize_features(self):
 
-        ## 3D plots ##
-        # plot V value ~ price + hour
-        # obs space is hour, price, res_level, action
-        # x = price (20 bins)
-        x = np.arange(self.env.observation_space.nvec[1])
-        # y = time (24 bins)
-        y = np.arange(self.env.observation_space.nvec[0])
-        x, y = np.meshgrid(x, y)
-        # z = V value
-        # get all relevant instances in replay memory
-        # average out unnecessary dimensions
-        z = np.mean(self.Qtable, axis=2)
-        # get argamx over action dimension
-        z_action = np.argmax(z, axis=2)
-        # get V value
-        z = np.max(z, axis=2)
-        # plot
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection="3d")
+        # 2d plots
+        feature_names = ["volume",
+                         "price",
+                         "hour",
+                         "day_of_week",
+                         "day_of_year",
+                         "mean price",
+                         "std price",
+                         'LSTM prediction']
+        for i, j in enumerate(feature_names):
+            x_lin = np.linspace(
+                self.env.observation_space.low[i],
+                self.env.observation_space.high[i],
+                50)
+            self.plot_2d(x_lin, i, j)
+
+        # 3d plots
+        # price x mean price
+        self.plot_3d(1, 5, "price", "mean price")
+        # price x reservoir volume
+        self.plot_3d(1, 0, "price", "reservoir volume")
+        # price x std price
+        self.plot_3d(1, 6, "price", "std price")
+        # price x LSTM prediction
+        self.plot_3d(1, 7, "price", "LSTM prediction")
+        # mean price x LSTM prediction
+        self.plot_3d(5, 7, "mean price", "LSTM prediction")
+        # price x hour
+        self.plot_3d(1, 2, "price", "hour")
+        # hour x reservoir volume
+        self.plot_3d(2, 0, "hour", "reservoir volume")
+
+    def plot_2d(self, x_lin, feature_index, feature_name):
+
+        # set features to default
+        x = [0.5] * self.env.observation_space.shape[0]
+        # make mean values a matrix
+        x = np.array(x).reshape(1, -1)
+        # repeat 50 times
+        x = np.repeat(x, 50, axis=0)
+
+        # replace price with linspace
+        x[:, feature_index] = x_lin
+        # predict
+        y = self.online_network.forward(torch.as_tensor(x, dtype=torch.float32, device=self.device))
+        # remember best actions
+        y_idx = np.argmax(y.detach().numpy(), axis=1)
+        # V value is max over action dimension
+        y = np.max(y.detach().numpy(), axis=1)
+        # color points according to best action
         colors = {0: "orange", 1: "green", 2: "red"}
-        z_action = np.vectorize(colors.get)(z_action)
-        ax.plot_surface(x, y, z, facecolors=z_action)
-        # set labels for colors
-        labels = ["Hold", "Sell", "Buy"]
-        handles = [
-            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
-        ]
-        ax.legend(handles=handles)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Time")
-        ax.set_zlabel("V value")
+        color_array = [colors[i] for i in y_idx]
+        # plot
+        fig, ax = plt.subplots()
+        ax.scatter(x_lin, y, c=color_array)
+        # add legend per color
+        actions = ["Hold", "Sell", "Buy"]
+        for i in range(3):
+            ax.scatter([], [], c=colors[i], label=actions[i])
+        ax.legend()
+        plt.title(f"V value for {feature_name} ")
+        plt.xlabel(feature_name)
+        plt.ylabel("V value")
         plt.show()
 
-        # plot V value ~ price + res_level
-        x = np.arange(self.env.observation_space.nvec[1])
-        y = np.arange(self.env.observation_space.nvec[2])
-        x, y = np.meshgrid(x, y)
-        z = np.mean(self.Qtable, axis=0)
-        z_action = np.argmax(z, axis=2).T
-        z_action = np.vectorize(colors.get)(z_action)
-        z = np.max(z, axis=2).T
+    def plot_3d(self, feature_index_1, feature_index_2, feature_name_1, feature_name_2):
+
+        x_lin = np.linspace(
+            self.env.observation_space.low[feature_index_1],
+            self.env.observation_space.high[feature_index_1],
+            50)
+        y_lin = np.linspace(
+            self.env.observation_space.low[feature_index_2],
+            self.env.observation_space.high[feature_index_2],
+            50)
+
+        # set features to default
+        x = [0.5] * self.env.observation_space.shape[0]
+        # make mean values a matrix
+        x = np.array(x).reshape(1, -1)
+        # repeat 50 times
+        x = np.repeat(x, 50, axis=0)
+        # replace price with linspace
+        x[:, feature_index_1] = x_lin
+        # repeat 50 times ( becomes 2500, will be reshaped later)
+        x = np.repeat(x, 50, axis=0)
+        # replace price with linspace
+        x[:, feature_index_2] = np.tile(y_lin, 50)
+        # predict
+        z = self.online_network.forward(torch.as_tensor(x, dtype=torch.float32, device=self.device))
+        # remember best actions
+        z_idx = np.argmax(z.detach().numpy(), axis=1)
+        # V value is max over action dimension
+        z = np.max(z.detach().numpy(), axis=1)
+        # reshape to 50x50
+        z = z.reshape(50, 50)
+        z_idx = z_idx.reshape(50, 50)
+
+        # make plot
+        x, y = np.meshgrid(x_lin, y_lin)
+        colors = {0: "orange", 1: "green", 2: "red"}
+        z_idx = np.vectorize(colors.get)(z_idx)
         fig = plt.figure()
         ax = fig.add_subplot(111, projection="3d")
-        ax.plot_surface(x, y, z, facecolors=z_action)
+        ax.plot_surface(x, y, z, facecolors=z_idx)
         labels = ["Hold", "Sell", "Buy"]
         handles = [
             mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
         ]
         ax.legend(handles=handles)
-        ax.set_xlabel("Price")
-        ax.set_ylabel("Reservoir level")
+        ax.set_xlabel(feature_name_2)
+        ax.set_ylabel(feature_name_1)
         ax.set_zlabel("V value")
         plt.set_cmap("viridis")
-        plt.show()
-
-        ## 2D plots ##
-        # plot V value ~ price
-        x = np.linspace(0, 1, self.env.observation_space.nvec[1])
-        x = np.arange(self.env.observation_space.nvec[1])
-        y = np.mean(self.Qtable, axis=(0, 2))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ price")
-        plt.xlabel("Price")
-        plt.ylabel("V value")
-        plt.show()
-
-        # plot V value ~ res_level
-        x = np.arange(self.env.observation_space.nvec[2])
-        y = np.mean(self.Qtable, axis=(0, 1))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ reservoir level")
-        plt.xlabel("Reservoir level")
-        plt.ylabel("V value")
-        plt.show()
-
-        # plot V value ~ time
-        x = np.arange(self.env.observation_space.nvec[0])
-        y = np.mean(self.Qtable, axis=(1, 2))
-        y = np.max(y, axis=1)
-        plt.plot(x, y)
-        plt.title("V value ~ time")
-        plt.xlabel("Time")
-        plt.ylabel("V value")
+        plt.title(f"V value for {feature_name_1} and {feature_name_2}")
         plt.show()
 
 

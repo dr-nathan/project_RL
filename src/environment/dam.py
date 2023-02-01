@@ -427,9 +427,6 @@ class TestEnvWrapper:
         # !!! state is not a local object but a reference to self.env.state
         # changing state will change self.env.state
 
-        # state = self.env.observation() # FIXME: _get_current_state already preprocesses state i think?
-        # processed_state = self._preprocess_state(state)
-
         return state, {}
 
     def step(self, action: int | float | bool):
