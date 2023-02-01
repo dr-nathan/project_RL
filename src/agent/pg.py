@@ -229,7 +229,7 @@ class PPOAgent(PGAgentBase):
         curr_dist = torch.distributions.Normal(means, stds)
         curr_log_probs = curr_dist.log_prob(actions)
 
-        log_prob_ratios = torch.exp(curr_log_probs - old_log_probs.detach())
+        log_prob_ratios = torch.exp(curr_log_probs) / torch.exp(old_log_probs.detach())
 
         curr_entropy = curr_dist.entropy()
 
