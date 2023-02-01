@@ -123,7 +123,7 @@ class QLearnAgent:
         start_amount: float = 0.5,
     ):
         # reset environment
-        state,_ = self.env.reset(
+        state, _ = self.env.reset(
             price_data=price_data,
             random_startpoint=random_startpoint,
             start_amount=start_amount,

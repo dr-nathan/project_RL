@@ -424,6 +424,8 @@ class TestEnvWrapper:
         self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
         state = self._get_current_state()
+        # !!! state is not a local object but a reference to self.env.state
+        # changing state will change self.env.state
 
         # state = self.env.observation() # FIXME: _get_current_state already preprocesses state i think?
         # processed_state = self._preprocess_state(state)
@@ -459,6 +461,8 @@ class TestEnvWrapper:
     def _preprocess_state(self, state: np.ndarray):
         # we only care about the first three features from the state
         processed_state = deepcopy(state)[:5]
+        # deepcopy was necessary, because a slice is a view.
+        # State actually points to self.env.state, which was modified by this function
         processed_state[0] /= self.env.max_volume
         processed_state[1] /= 200
         processed_state[2] /= 24
