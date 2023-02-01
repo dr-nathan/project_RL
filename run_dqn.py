@@ -1,13 +1,14 @@
 import os
 import random
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from pathlib import Path
-from src.environment import DiscreteContinuousDamEnv
-from src.utils import convert_dataframe
 import torch
-from src.agent_dqn import DDQNAgent
 
+from src.agent.dqn import DDQNAgent
+from src.environment.dam import DiscreteContinuousDamEnv
+from src.utils import convert_dataframe
 
 if __name__ == "__main__":
 
@@ -18,9 +19,9 @@ if __name__ == "__main__":
     torch.cuda.manual_seed_all(seed_value)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    os.environ['PYTHONHASHSEED'] = str(seed_value)
+    os.environ["PYTHONHASHSEED"] = str(seed_value)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # load data
     train_data_path = Path(__file__).parent / "data" / "train.xlsx"
@@ -31,7 +32,10 @@ if __name__ == "__main__":
     val_data = convert_dataframe(val_data)
 
     # load environment
-    environment = DiscreteContinuousDamEnv(train_data)  # continuous states with discrete actions
+    environment = DiscreteContinuousDamEnv(
+        train_data
+    )  # continuous states with discrete actions
+    val_environment = DiscreteContinuousDamEnv(val_data)
 
     # load the DQN agent
     discount_rate = 0.98
@@ -43,11 +47,14 @@ if __name__ == "__main__":
     epsilon_decay = True
 
     lr = 5e-3
-    n_episodes = int(20 * len(environment))  # number is how many times you run throuh the whole dataset
+    n_episodes = int(
+        20 * len(environment)
+    )  # number is how many times you run throuh the whole dataset
     buffer_size = len(environment)
 
-    dagent = DDQNAgent(
+    agent = DDQNAgent(
         env=environment,
+        val_env=val_environment,
         device=device,
         epsilon=epsilon,
         epsilon_decay=epsilon_decay,
@@ -57,15 +64,22 @@ if __name__ == "__main__":
         discount_rate=discount_rate,
         lr=lr,
         buffer_size=buffer_size,
-        seed=seed_value
+        seed=seed_value,
     )
 
-    episode_data = dagent.training_loop(batch_size, price_data_val=val_data)
+    # if file exists, load policy
+    filepath = Path(__file__).parent / "models" / "DQN" / "model.pt"
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    if filepath.exists():
+        agent.load(filepath)
+        print("Loaded agent from file")
 
-    episode_data.debug_plot("Final training episode")
-    
-    episode_data = dagent.validate(price_data=val_data)
+    train_filepath = filepath.parent / "training.pt"
+    agent.training_loop(batch_size, save_path=train_filepath)
+    agent.env.episode_data.debug_plot("Final training episode")
 
-    episode_data.debug_plot("Validation episode")
-    print(f"total val reward: {episode_data.total_reward}")
- 
+    agent.load(train_filepath)
+    agent.validate(env=val_environment)
+    val_environment.episode_data.debug_plot("Final validation episode")
+
+    print(f"total val reward: {val_environment.episode_data.total_reward}")

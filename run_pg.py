@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.agent_pg import BasicPGAgent
-from src.environment import ContinuousDamEnv
+from src.agent.pg import BasicPGAgent
+from src.environment.dam import ContinuousDamEnv
 from src.utils import convert_dataframe
 
 if __name__ == "__main__":
@@ -26,10 +26,10 @@ if __name__ == "__main__":
     )
 
     # train agent
-    n_episodes = 500
+    n_episodes = 1
 
     # if file exists, load policy
-    filepath = Path(__file__).parent / "PG" / "model.pt"
+    filepath = Path(__file__).parent / "models" / "PG" / "model.pt"
     filepath.parent.mkdir(parents=True, exist_ok=True)
     if filepath.exists():
         agent.load(filepath)

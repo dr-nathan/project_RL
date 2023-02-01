@@ -11,8 +11,8 @@ import pandas as pd
 import seaborn as sns
 from gymnasium import spaces
 
-from src.TestEnv import HydroElectric_Test
-from src.lstm import LSTM_price
+from src.environment.lstm import LSTM_price
+from src.environment.TestEnv import HydroElectric_Test
 from src.utils import cumsum, joule_to_mwh, plt_col
 
 
@@ -33,13 +33,13 @@ class DamEpisodeData:
         return len(self.date)
 
     def add(
-            self,
-            date: datetime,
-            storage: float | None = None,
-            action: float | None = None,
-            flow: float | None = None,
-            price: float | None = None,
-            reward: float | None = None,
+        self,
+        date: datetime,
+        storage: float | None = None,
+        action: float | None = None,
+        flow: float | None = None,
+        price: float | None = None,
+        reward: float | None = None,
     ):
         self.date.append(date)
         self.storage.append(storage)
@@ -133,12 +133,12 @@ class DamEnvBase(gym.Env):
         return len(self.price_data)
 
     def reset(
-            self,
-            *,
-            seed: int | None = 7,
-            start_amount: float | Literal["random"] = 0.5,
-            random_startpoint: bool = False,
-            price_data: dict[datetime, float] | None = None,
+        self,
+        *,
+        seed: int | None = 7,
+        start_amount: float | Literal["random"] = 0.5,
+        random_startpoint: bool = False,
+        price_data: dict[datetime, float] | None = None,
     ):
         super().reset(seed=seed)
 
@@ -146,7 +146,7 @@ class DamEnvBase(gym.Env):
             self.price_data = dict(sorted(price_data.items()))
         else:
             assert (
-                    self.price_data and len(self.price_data) > 0
+                self.price_data and len(self.price_data) > 0
             ), "No price data provided"
 
         # reservoir starting level
@@ -409,8 +409,8 @@ class TestEnvWrapper:
         self._base_env = deepcopy(env)
         self.env = env
 
-        self.discrete_action_space = env.discrete_action_space
-        self.continuous_action_space = env.continuous_action_space
+        self.action_space = env.discrete_action_space
+        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
 
         self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
@@ -430,7 +430,7 @@ class TestEnvWrapper:
         # state = self.env.observation() # FIXME: _get_current_state already preprocesses state i think?
         # processed_state = self._preprocess_state(state)
 
-        return state  # processed_state
+        return state, {}
 
     def step(self, action: int | float | bool):
         action = self._action_to_env(action)
@@ -472,7 +472,9 @@ class TestEnvWrapper:
         processed_state = np.append(processed_state, self._mean_window(24) / 200)
         processed_state = np.append(processed_state, self._cov_window(24))
         # append lstm prediction
-        processed_state = np.append(processed_state, self._lstm_predict_next(24, 1) / 200)
+        processed_state = np.append(
+            processed_state, self._lstm_predict_next(24, 1) / 200
+        )
 
         return processed_state
 

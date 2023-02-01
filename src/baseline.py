@@ -2,7 +2,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 
-from src.environment import DiscreteDamEnv
+from src.environment.dam import DiscreteDamEnv
 from src.utils import convert_dataframe
 
 
