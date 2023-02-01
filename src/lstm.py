@@ -160,17 +160,19 @@ class LSTM_price:
     def predict(self, window_size, future, data):
         self.window_size = window_size
         self.future = future
-        model = LSTM(input_size=1, hidden_size=100, out_size=1)
-        model.load_state_dict(torch.load(self.trained_filepath))
-        model.eval()
+        # load model only once
+        if not hasattr(self, "model"):
+            self.model = LSTM(input_size=1, hidden_size=100, out_size=1)
+            self.model.load_state_dict(torch.load(self.trained_filepath))
+            self.model.eval()
 
         preds = data[-self.window_size :]
-        for f in tqdm(range(self.future)):
+        for f in range(self.future):
             seq = torch.FloatTensor(preds[-self.window_size :])
             with torch.no_grad():
-                model.hidden = (
-                    torch.zeros(1, 1, model.hidden_size),
-                    torch.zeros(1, 1, model.hidden_size),
+                self.model.hidden = (
+                    torch.zeros(1, 1, self.model.hidden_size),
+                    torch.zeros(1, 1, self.model.hidden_size),
                 )
-                preds.append(model(seq).item())
+                preds.append(self.model(seq).item())
         return preds[-1]
