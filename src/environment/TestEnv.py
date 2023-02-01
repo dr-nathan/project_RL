@@ -1,4 +1,4 @@
-import gymnasium as gym
+import gymnasium as gym # NOTE: we use gymnasium instead of gym
 import numpy as np
 import pandas as pd
 

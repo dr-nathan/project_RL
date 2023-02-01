@@ -305,7 +305,6 @@ class DDQNAgent:
 
     def visualize_features(self):
 
-        # 2d plots
         feature_names = ["volume",
                          "price",
                          "hour",
@@ -314,6 +313,8 @@ class DDQNAgent:
                          "mean price",
                          "std price",
                          'LSTM prediction']
+
+        # 2d plots
         for i, j in enumerate(feature_names):
             x_lin = np.linspace(
                 self.env.observation_space.low[i],
@@ -336,6 +337,8 @@ class DDQNAgent:
         self.plot_3d(1, 2, "price", "hour")
         # hour x reservoir volume
         self.plot_3d(2, 0, "hour", "reservoir volume")
+
+        ## feel free to add any combination of 2 features
 
     def plot_2d(self, x_lin, feature_index, feature_name):
 

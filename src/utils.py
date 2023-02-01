@@ -1,3 +1,4 @@
+from collections import deque
 from datetime import datetime
 
 import numpy as np
@@ -68,12 +69,13 @@ def plt_col(lst):
             cols.append("red")
     return cols
 
-def discounted_reward(rewards:list[float], gamma:float):
-    discounted_rewards = np.zeros_like(rewards)
+
+def discounted_reward(rewards: list[float], gamma: float):
     running_add = 0.0
+    returns: deque[float] = deque()
 
-    for t in reversed(range(len(rewards))):
-        running_add = running_add * gamma + rewards[t]
-        discounted_rewards[t] = running_add
+    for t in rewards[::-1]:
+        running_add = running_add * gamma + t
+        returns.appendleft(running_add)
 
-    return discounted_rewards
+    return returns
