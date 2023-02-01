@@ -7,13 +7,27 @@ from src.agent.dqn import DDQNAgent
 from src.environment.dam import TestEnvWrapper
 from src.environment.TestEnv import HydroElectric_Test
 
+data_path = Path(__file__).parent
+
 parser = argparse.ArgumentParser()
 # Path to the excel file with the train data
-parser.add_argument("--train_file", type=str, default="data/train.xlsx")
+parser.add_argument(
+    "--train_file",
+    type=str,
+    default=data_path / "train.xlsx",
+    help="Path to the excel file with the train data",
+)
 # Path to the excel file with the validation
-parser.add_argument("--val_file", type=str, default="data/validate.xlsx")
+parser.add_argument(
+    "--test_file",
+    type=str,
+    default=data_path / "validate.xlsx",
+    help="Path to the excel file with the test data",
+)
 # If false, the model will only be validated
-parser.add_argument("--train", action="store_true")
+parser.add_argument(
+    "--train", action="store_true", help="If false, the model will only be validated"
+)
 args = parser.parse_args()
 
 env = HydroElectric_Test(path_to_test_data=args.train_file)
@@ -55,12 +69,14 @@ agent = DDQNAgent(
 # if file exists, load policy
 filepath = Path(__file__).parent / "models" / "test" / "dqn.pt"
 filepath.parent.mkdir(parents=True, exist_ok=True)
+
 if filepath.exists():
     agent.load(filepath)
     print("Loaded agent from file")
+else:
+    print("No agent found, creating new one")
 
-# if not args.train:
-if True:
+if args.train:
     agent.training_loop(batch_size, save_path=filepath.parent / "training.pt")
 
 total_reward, episode_data = agent.validate(val_env_wrapped)

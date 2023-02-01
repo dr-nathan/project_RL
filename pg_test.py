@@ -6,8 +6,8 @@ import torch
 
 from src.agent.pg import DEVICE, BasicPGNetwork
 
-filepath = Path(__file__).parent / "PG" / "nobatch_lmean.pt"
-net = BasicPGNetwork(2, 1, 5, 2).to(DEVICE)
+filepath = Path(__file__).parent / "models" / "PG" / "nobatch_lmean.pt"
+net = BasicPGNetwork(2, 1, 5, 3).to(DEVICE)
 net.load_state_dict(torch.load(filepath, map_location=DEVICE))
 
 # %%
