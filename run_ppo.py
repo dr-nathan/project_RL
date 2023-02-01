@@ -18,6 +18,7 @@ if __name__ == "__main__":
     environment = ContinuousDamEnv(train_data)
     agent = PPOAgent(
         env=environment,
+        batch_size=10240,
         clip_epsilon=0.2,
         discount_factor=0.98,
         entropy_loss_coeff=0.01,

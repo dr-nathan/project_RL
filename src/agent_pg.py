@@ -195,6 +195,7 @@ class PPOAgent(PGAgentBase):
     def __init__(
         self,
         env: ContinuousDamEnv,
+        batch_size: int = 1024,
         clip_epsilon: float = 0.2,
         discount_factor: float = 0.98,
         entropy_loss_coeff: float = 0.01,
@@ -208,6 +209,7 @@ class PPOAgent(PGAgentBase):
         self.optimizer = Adam(self.policy_network.parameters(), lr=learning_rate)
         self.scheduler = ReduceLROnPlateau(self.optimizer)
 
+        self.batch_size = batch_size
         self.clip_epsilon = clip_epsilon
         self.entropy_loss_coeff = entropy_loss_coeff
         self.epochs = epochs
@@ -267,15 +269,33 @@ class PPOAgent(PGAgentBase):
         epoch_losses = []
 
         for _ in range(self.epochs):
-            loss = self.calculate_loss(
-                states, actions, rewards, advantages, old_log_probs
-            )
-            self.optimizer.zero_grad()
-            loss.backward()
-            nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5)
-            self.optimizer.step()
+            indexes = torch.randperm(len(states))
+            epoch_losses = []
 
-            epoch_losses.append(loss.item())
+            for start in range(0, len(states), self.batch_size):
+                batch_indexes = indexes[start : start + self.batch_size]
+
+                batch_states = states[batch_indexes]
+                batch_actions = actions[batch_indexes]
+                batch_rewards = rewards[batch_indexes]
+                batch_advantages = advantages[batch_indexes]
+                batch_log_probs = old_log_probs[batch_indexes]
+
+                self.policy_network = self.policy_network.to(DEVICE)
+
+                loss = self.calculate_loss(
+                    batch_states,
+                    batch_actions,
+                    batch_rewards,
+                    batch_advantages,
+                    batch_log_probs,
+                )
+                self.optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(self.policy_network.parameters(), 0.5)
+                self.optimizer.step()
+
+                epoch_losses.append(loss.item())
 
         rewards_sum = rewards.sum().item()
         loss_mean = sum(epoch_losses) / len(epoch_losses)
