@@ -1,7 +1,6 @@
 import copy
 import random
 from collections import deque
-
 import numpy as np
 import torch
 import torch.nn.functional as f
@@ -198,8 +197,6 @@ class DDQNAgent:
             plt.plot(epsilons)
             plt.show()
 
-        self.env.episode_data.debug_plot()
-
     def play_action(self, state: np.ndarray):
 
         action = self.choose_action(state, "epsilon_greedy")
@@ -290,6 +287,95 @@ class DDQNAgent:
 
         return total_reward, env.episode_data
 
+    def visualize_features(self):
+
+        ## 3D plots ##
+        # plot V value ~ price + hour
+        # obs space is hour, price, res_level, action
+        # x = price (20 bins)
+        x = np.arange(self.env.observation_space.nvec[1])
+        # y = time (24 bins)
+        y = np.arange(self.env.observation_space.nvec[0])
+        x, y = np.meshgrid(x, y)
+        # z = V value
+        # get all relevant instances in replay memory
+        # average out unnecessary dimensions
+        z = np.mean(self.Qtable, axis=2)
+        # get argamx over action dimension
+        z_action = np.argmax(z, axis=2)
+        # get V value
+        z = np.max(z, axis=2)
+        # plot
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        colors = {0: "orange", 1: "green", 2: "red"}
+        z_action = np.vectorize(colors.get)(z_action)
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        # set labels for colors
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Time")
+        ax.set_zlabel("V value")
+        plt.show()
+
+        # plot V value ~ price + res_level
+        x = np.arange(self.env.observation_space.nvec[1])
+        y = np.arange(self.env.observation_space.nvec[2])
+        x, y = np.meshgrid(x, y)
+        z = np.mean(self.Qtable, axis=0)
+        z_action = np.argmax(z, axis=2).T
+        z_action = np.vectorize(colors.get)(z_action)
+        z = np.max(z, axis=2).T
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_surface(x, y, z, facecolors=z_action)
+        labels = ["Hold", "Sell", "Buy"]
+        handles = [
+            mpatches.Patch(color=colors[i], label=labels[i]) for i in range(len(labels))
+        ]
+        ax.legend(handles=handles)
+        ax.set_xlabel("Price")
+        ax.set_ylabel("Reservoir level")
+        ax.set_zlabel("V value")
+        plt.set_cmap("viridis")
+        plt.show()
+
+        ## 2D plots ##
+        # plot V value ~ price
+        x = np.linspace(0, 1, self.env.observation_space.nvec[1])
+        x = np.arange(self.env.observation_space.nvec[1])
+        y = np.mean(self.Qtable, axis=(0, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ price")
+        plt.xlabel("Price")
+        plt.ylabel("V value")
+        plt.show()
+
+        # plot V value ~ res_level
+        x = np.arange(self.env.observation_space.nvec[2])
+        y = np.mean(self.Qtable, axis=(0, 1))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ reservoir level")
+        plt.xlabel("Reservoir level")
+        plt.ylabel("V value")
+        plt.show()
+
+        # plot V value ~ time
+        x = np.arange(self.env.observation_space.nvec[0])
+        y = np.mean(self.Qtable, axis=(1, 2))
+        y = np.max(y, axis=1)
+        plt.plot(x, y)
+        plt.title("V value ~ time")
+        plt.xlabel("Time")
+        plt.ylabel("V value")
+        plt.show()
+
 
 def plot_rewards(train_rewards, val_rewards):
     plt.plot(train_rewards, label="train")
@@ -312,3 +398,4 @@ def plot_nn_weights(model):
     plt.ylabel("weight")
     plt.title("Feature importance")
     plt.show()
+

@@ -460,7 +460,7 @@ class TestEnvWrapper:
 
     def _preprocess_state(self, state: np.ndarray):
         # we only care about the first three features from the state
-        processed_state = deepcopy(state)[:5]
+        processed_state = state.copy()[:5]
         # deepcopy was necessary, because a slice is a view.
         # State actually points to self.env.state, which was modified by this function
         processed_state[0] /= self.env.max_volume
