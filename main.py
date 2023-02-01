@@ -1,6 +1,8 @@
-from src.TestEnv import HydroElectric_Test
 import argparse
+
 import torch
+
+from src.TestEnv import HydroElectric_Test
 from src.agent_dqn import DDQNAgent
 from src.environment import TestEnvWrapper
 
@@ -13,7 +15,7 @@ args = parser.parse_args()
 env = HydroElectric_Test(path_to_test_data=args.train_file)
 val_env = HydroElectric_Test(path_to_test_data=args.val_file)
 
-# TODO: do we do this here or in the agent?
+# TODO: do we do this here or in the agent? NV: Ah here is fine
 env_wrapped = TestEnvWrapper(env)
 val_env_wrapped = TestEnvWrapper(val_env)
 
@@ -25,7 +27,7 @@ epsilon_start = 1
 epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-4
-n_episodes = int(30 * len(env_wrapped))  # number is how many times you run throuh the whole dataset
+n_episodes = int(20 * len(env_wrapped))  # number is how many times you run throuh the whole dataset
 buffer_size = len(env_wrapped)
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 seed_value = 7

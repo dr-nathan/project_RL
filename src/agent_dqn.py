@@ -12,7 +12,6 @@ from tqdm import tqdm
 
 class DQN(nn.Module):
     def __init__(self, env, learning_rate, seed):
-
         super().__init__()
         self.seed = torch.manual_seed(seed)
         # NV: get the input features selected by agent
@@ -28,7 +27,6 @@ class DQN(nn.Module):
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, x):
-
         x = torch.relu(self.dense1(x))
         # x = torch.relu(self.dense2(x))
         x = torch.relu(self.dense3(x))
@@ -38,7 +36,7 @@ class DQN(nn.Module):
 
 
 class ExperienceReplay:
-    def __init__(self, buffer_size, min_replay_size, agent, seed):
+    def __init__(self, buffer_size: int, min_replay_size: int, agent: object, seed: int):
 
         """
         Params:
@@ -77,7 +75,7 @@ class ExperienceReplay:
             if terminated or truncated:
                 state = self.agent.reset_env()
 
-    def sample(self, batch_size):
+    def sample(self, batch_size: int):
 
         # sample random transitions from the replay memory
         transitions = random.sample(self.replay_buffer, batch_size)
@@ -113,32 +111,20 @@ class ExperienceReplay:
 
 class DDQNAgent:
     def __init__(
-        self,
-        env,
-        val_env,
-        device,
-        epsilon,
-        epsilon_decay,
-        epsilon_start,
-        epsilon_end,
-        n_episodes,
-        discount_rate,
-        lr,
-        buffer_size,
-        seed,
+            self,
+            env,
+            val_env,
+            device: torch.device,
+            epsilon: float = 1.0,
+            epsilon_decay: bool = True,
+            epsilon_start: float = 1.0,
+            epsilon_end: float = 0.01,
+            n_episodes: int = 20,
+            discount_rate: float = 0.99,
+            lr: float = 5e-4,
+            buffer_size: int = 100000,
+            seed: int = 7,
     ):
-        """
-        Params:
-        env = name of the environment that the agent needs to play
-        device = set up to run CUDA operations
-        epsilon_decay = Decay period until epsilon start -> epsilon end
-        epsilon_start = starting value for the epsilon value
-        epsilon_end = ending value for the epsilon value
-        discount_rate = discount rate for future rewards
-        lr = learning rate
-        buffer_size = max number of transitions that the experience replay buffer can store
-        seed = seed for random number generator for reproducibility
-        """
 
         self.env = env
         self.val_env = val_env
@@ -172,7 +158,7 @@ class DDQNAgent:
         )
         self.target_network.load_state_dict(self.online_network.state_dict())
 
-    def training_loop(self, batch_size):
+    def training_loop(self, batch_size: int):
 
         # reset the environment
         state = self.env.reset()
@@ -214,7 +200,7 @@ class DDQNAgent:
 
         self.env.episode_data.debug_plot()
 
-    def play_action(self, state):
+    def play_action(self, state: np.ndarray):
 
         action = self.choose_action(state, "epsilon_greedy")
         next_state, reward, terminated, *_ = self.env.step(action)
@@ -229,7 +215,7 @@ class DDQNAgent:
 
         return state, action, reward
 
-    def choose_action(self, state, policy):
+    def choose_action(self, state: np.ndarray, policy: str):
         state = torch.as_tensor(state, dtype=torch.float32, device=self.device)
         if policy == "random":
             return self.env.discrete_action_space.sample()
@@ -245,7 +231,7 @@ class DDQNAgent:
 
         raise ValueError("Unknown policy")
 
-    def learn(self, batch_size):
+    def learn(self, batch_size: int):
 
         """
         Params:
@@ -317,7 +303,8 @@ def plot_nn_weights(model):
     weights = model.dense1.weight.detach().numpy()
     # get absolute mean of weights
     weights = np.abs(weights).mean(axis=0)
-    plt.bar(range(len(weights)), weights)
+    fig, ax = plt.subplots()
+    ax.bar(range(len(weights)), weights)
     plt.xlabel("feature")
     plt.ylabel("weight")
     plt.title("Feature importance")

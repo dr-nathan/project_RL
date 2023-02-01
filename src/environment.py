@@ -1,5 +1,5 @@
-from copy import deepcopy
 import random
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Literal
@@ -11,9 +11,9 @@ import pandas as pd
 import seaborn as sns
 from gymnasium import spaces
 
-from src.utils import cumsum, joule_to_mwh, plt_col
-from src.lstm import LSTM_price
 from src.TestEnv import HydroElectric_Test
+from src.lstm import LSTM_price
+from src.utils import cumsum, joule_to_mwh, plt_col
 
 
 @dataclass
@@ -33,13 +33,13 @@ class DamEpisodeData:
         return len(self.date)
 
     def add(
-        self,
-        date: datetime,
-        storage: float | None = None,
-        action: float | None = None,
-        flow: float | None = None,
-        price: float | None = None,
-        reward: float | None = None,
+            self,
+            date: datetime,
+            storage: float | None = None,
+            action: float | None = None,
+            flow: float | None = None,
+            price: float | None = None,
+            reward: float | None = None,
     ):
         self.date.append(date)
         self.storage.append(storage)
@@ -133,12 +133,12 @@ class DamEnvBase(gym.Env):
         return len(self.price_data)
 
     def reset(
-        self,
-        *,
-        seed: int | None = 7,
-        start_amount: float | Literal["random"] = 0.5,
-        random_startpoint: bool = False,
-        price_data: dict[datetime, float] | None = None,
+            self,
+            *,
+            seed: int | None = 7,
+            start_amount: float | Literal["random"] = 0.5,
+            random_startpoint: bool = False,
+            price_data: dict[datetime, float] | None = None,
     ):
         super().reset(seed=seed)
 
@@ -146,7 +146,7 @@ class DamEnvBase(gym.Env):
             self.price_data = dict(sorted(price_data.items()))
         else:
             assert (
-                self.price_data and len(self.price_data) > 0
+                    self.price_data and len(self.price_data) > 0
             ), "No price data provided"
 
         # reservoir starting level
@@ -414,17 +414,19 @@ class TestEnvWrapper:
         self.current_date = self._get_current_date()
         self.state = self._get_current_state()
 
+        self.lstm = LSTM_price()
+
     def reset(self):
-        self.episode_data = DamEpisodeData()
         self.env = deepcopy(self._base_env)
 
+        self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
-        self.state = self._get_current_state()
+        state = self._get_current_state()
 
-        state = self.env.observation()
-        processed_state = self._preprocess_state(state)
+        # state = self.env.observation() # FIXME: _get_current_state already preprocesses state i think?
+        # processed_state = self._preprocess_state(state)
 
-        return processed_state
+        return state  # processed_state
 
     def step(self, action: int | float | bool):
         action = self._action_to_env(action)
@@ -454,16 +456,31 @@ class TestEnvWrapper:
 
     def _preprocess_state(self, state: np.ndarray):
         # we only care about the first three features from the state
-        processed_state = state[:5]
+        processed_state = deepcopy(state)[:5]
         processed_state[0] /= self.env.max_volume
         processed_state[1] /= 200
         processed_state[2] /= 24
         processed_state[3] /= 6
         processed_state[4] /= 364
-
-        # TODO: add our own features
+        # append mean and std of last 24 hours
+        processed_state = np.append(processed_state, self._mean_window(24) / 200)
+        processed_state = np.append(processed_state, self._cov_window(24))
+        # append lstm prediction
+        processed_state = np.append(processed_state, self._lstm_predict_next(24, 1) / 200)
 
         return processed_state
+
+    def _mean_window(self, window_size):
+        window = self.episode_data.price[-window_size:]
+        return 0 if len(window) == 0 else sum(window) / len(window)
+
+    def _cov_window(self, window_size):
+        window = self.episode_data.price[-window_size:]
+        return 0 if len(window) == 0 else np.std(window) / np.mean(window)
+
+    def _lstm_predict_next(self, window_size, future):
+        window = self.episode_data.price[-window_size:]
+        return 0 if len(window) == 0 else self.lstm.predict(window_size, future, window)
 
     @staticmethod
     def _action_to_env(action: int | float | bool):
@@ -488,5 +505,5 @@ class TestEnvWrapper:
         return 0
 
     def __len__(self):
-        return len(self.env.timestamps) * 24 # timestamps is amount of rows in csv (1096),
+        return len(self.env.timestamps) * 24  # timestamps is amount of rows in csv (1096),
         # so multiply by 24 to get total amount of timesteps
