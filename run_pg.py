@@ -26,7 +26,7 @@ if __name__ == "__main__":
     )
 
     # train agent
-    n_episodes = 1
+    n_episodes = 500
 
     # if file exists, load policy
     filepath = Path(__file__).parent / "models" / "PG" / "model.pt"
