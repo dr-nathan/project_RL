@@ -2,15 +2,15 @@
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import torch
+from torch import nn
 
 from src.agent.pg import DEVICE
 
-from torch import nn
+
 class BasicPGNetwork(nn.Module):
-    def __init__(
-        self, state_size: int, action_size: int, hidden_size: int = 5
-    ):
+    def __init__(self, state_size: int, action_size: int, hidden_size: int = 5):
         super().__init__()
 
         self.fc1 = nn.Linear(state_size, hidden_size)
@@ -53,7 +53,6 @@ inps = torch.stack([xs, ys], dim=2).to(DEVICE)
 meanss, stdss = net(inps)
 
 # %%
-import seaborn as sns
 sns.set(style="whitegrid")
 fig = plt.figure(figsize=(8.8, 4.8))
 
