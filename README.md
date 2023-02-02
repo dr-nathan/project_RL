@@ -10,4 +10,4 @@ Install the requirements: `pip install -r requirements.txt`. The listed torch ve
 
 # Running the code
 
-To run the final agent and see its performance, run `python main.py --test-file PATH_TO_FILE`. The file should be an excel file with the same format as the train data.
+To run the final agent and see its performance, run `python main.py --test_file PATH_TO_FILE`. The file should be an excel file with the same format as the train data.
