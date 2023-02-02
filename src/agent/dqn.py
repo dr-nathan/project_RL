@@ -1,12 +1,13 @@
 import copy
-from pathlib import Path
 import random
 from collections import deque
+from pathlib import Path
+
+import matplotlib.patches as mpatches
 import numpy as np
 import torch
 import torch.nn.functional as f
 from matplotlib import pyplot as plt
-import matplotlib.patches as mpatches
 from torch import nn, optim
 from tqdm import tqdm
 
@@ -193,7 +194,8 @@ class DDQNAgent:
                 val_rewards.append(data_val)
 
                 # Save the model if the validation reward is the best so far
-                if save_path and (val_rewards or data_val > max(val_rewards)):
+                if save_path and (data_val >= max(val_rewards)):
+                    self.best_agent = iteration
                     torch.save(self.online_network.state_dict(), save_path)
 
         plot_rewards(train_rewards, val_rewards)
@@ -203,6 +205,7 @@ class DDQNAgent:
             plt.show()
 
         self.visualize_features()
+        print(f"Best agent at iteration {self.best_agent} out of {self.n_episodes}")
 
     def play_action(self, state: np.ndarray):
 
@@ -311,8 +314,8 @@ class DDQNAgent:
                          "day_of_week",
                          "day_of_year",
                          "mean price",
-                         "std price",
-                         'LSTM prediction']
+                         "std price"]
+                         #'LSTM prediction']
 
         # 2d plots
         for i, j in enumerate(feature_names):
@@ -330,9 +333,9 @@ class DDQNAgent:
         # price x std price
         self.plot_3d(1, 6, "price", "std price")
         # price x LSTM prediction
-        self.plot_3d(1, 7, "price", "LSTM prediction")
-        # mean price x LSTM prediction
-        self.plot_3d(5, 7, "mean price", "LSTM prediction")
+        # self.plot_3d(1, 7, "price", "LSTM prediction")
+        # # mean price x LSTM prediction
+        # self.plot_3d(5, 7, "mean price", "LSTM prediction")
         # price x hour
         self.plot_3d(1, 2, "price", "hour")
         # hour x reservoir volume

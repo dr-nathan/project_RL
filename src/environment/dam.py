@@ -410,7 +410,7 @@ class TestEnvWrapper:
         self.env = env
 
         self.action_space = env.discrete_action_space
-        self.observation_space = spaces.Box(low=0, high=1, shape=(8,))
+        self.observation_space = spaces.Box(low=0, high=1, shape=(7,))
 
         self.episode_data = DamEpisodeData()
         self.current_date = self._get_current_date()
@@ -469,9 +469,9 @@ class TestEnvWrapper:
         processed_state = np.append(processed_state, self._mean_window(24) / 200)
         processed_state = np.append(processed_state, self._cov_window(24))
         # append lstm prediction
-        processed_state = np.append(
-            processed_state, self._lstm_predict_next(24, 1) / 200
-        )
+        # processed_state = np.append(
+        #     processed_state, self._lstm_predict_next(24, 1) / 200
+        # )
 
         return processed_state
 

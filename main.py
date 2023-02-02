@@ -4,8 +4,8 @@ from pathlib import Path
 import torch
 
 from src.agent.dqn import DDQNAgent
-from src.environment.dam import TestEnvWrapper
 from src.environment.TestEnv import HydroElectric_Test
+from src.environment.dam import TestEnvWrapper
 
 data_path = Path(__file__).parent
 
@@ -14,14 +14,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--train_file",
     type=str,
-    default=data_path / "train.xlsx",
+    default=data_path / "data" / "train.xlsx",
     help="Path to the excel file with the train data",
 )
 # Path to the excel file with the validation
 parser.add_argument(
     "--test_file",
     type=str,
-    default=data_path / "validate.xlsx",
+    default=data_path / "data" / "validate.xlsx",
     help="Path to the excel file with the test data",
 )
 # If false, the model will only be validated
@@ -31,7 +31,7 @@ parser.add_argument(
 args = parser.parse_args()
 
 env = HydroElectric_Test(path_to_test_data=args.train_file)
-val_env = HydroElectric_Test(path_to_test_data=args.val_file)
+val_env = HydroElectric_Test(path_to_test_data=args.test_file)
 
 # NOTE: We wrap the provided TestEnv to make it compatible with the agent
 env_wrapped = TestEnvWrapper(env)
@@ -46,7 +46,7 @@ epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-4
 # number is how many times you run throuh the whole dataset
-n_episodes = int(100 * len(env_wrapped))
+n_episodes = int(50 * len(env_wrapped))
 buffer_size = len(env_wrapped)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 seed_value = 7
@@ -70,7 +70,7 @@ agent = DDQNAgent(
 filepath = Path(__file__).parent / "models" / "test" / "dqn.pt"
 filepath.parent.mkdir(parents=True, exist_ok=True)
 
-if filepath.exists():
+if filepath.exists() and not args.train:
     agent.load(filepath)
     print("Loaded agent from file")
 else:
