@@ -2,6 +2,7 @@ import copy
 import random
 from collections import deque
 from pathlib import Path
+import seaborn as sns
 
 import matplotlib.patches as mpatches
 import numpy as np
@@ -201,7 +202,7 @@ class DDQNAgent:
             plt.plot(epsilons)
             plt.show()
 
-        # self.visualize_features()
+        self.visualize_features()
         print(f"Best agent at iteration {self.best_agent} out of {self.n_episodes}")
 
     def play_action(self, state: np.ndarray):
@@ -323,7 +324,7 @@ class DDQNAgent:
         # price x mean price
         self.plot_3d(1, 5, "price", "mean price")
         # price x reservoir volume
-        self.plot_3d(1, 0, "price", "reservoir volume")
+        self.plot_3d(0, 1, "reservoir volume", "price")
         # price x std price
         self.plot_3d(1, 6, "price", "std price")
         # price x LSTM prediction
@@ -424,6 +425,7 @@ class DDQNAgent:
 
 
 def plot_rewards(train_rewards, val_rewards):
+    sns.set()
     plt.plot(train_rewards, label="train")
     plt.plot(val_rewards, label="val")
     plt.legend()

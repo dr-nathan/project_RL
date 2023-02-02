@@ -46,7 +46,7 @@ epsilon_end = 0.05
 epsilon_decay = True
 lr = 5e-4
 # number is how many times you run throuh the whole dataset
-n_episodes = int(20 * len(env_wrapped))
+n_episodes = int(50 * len(env_wrapped))
 buffer_size = len(env_wrapped)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 seed_value = 7
