@@ -252,9 +252,6 @@ class DDQNAgent:
             new_observations_t,
         ) = self.replay_memory.sample(batch_size)
 
-        # normalize rewards
-        rewards_t = (rewards_t - rewards_t.mean()) / (rewards_t.std() + 1e-8)
-
         self.target_network.eval()
         target_q_values = self.target_network.forward(new_observations_t)
         max_target_q_values = target_q_values.max(dim=1, keepdim=True)[0]
