@@ -23,9 +23,9 @@ if __name__ == "__main__":
 
     # train agent
     epsilon_decay = False
-    epsilon = 0.8  # overriden if epsilon_decay is True
+    epsilon = 0.9  # overriden if epsilon_decay is True
     alpha = 0.1
-    n_episodes = 1
+    n_episodes = 1000
     random_startpoint = False
     start_amount = 0.5
 

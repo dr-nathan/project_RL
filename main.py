@@ -2,10 +2,12 @@ import argparse
 from pathlib import Path
 
 import torch
+from rich import print
+from rich.progress import Progress
 
 from src.agent.dqn import DDQNAgent
-from src.environment.TestEnv import HydroElectric_Test
 from src.environment.dam import TestEnvWrapper
+from src.environment.TestEnv import HydroElectric_Test
 
 data_path = Path(__file__).parent
 
@@ -72,14 +74,17 @@ filepath.parent.mkdir(parents=True, exist_ok=True)
 
 if filepath.exists() and not args.train:
     agent.load(filepath)
-    print("Loaded agent from file")
+    print("[green]✔ Loaded agent from file")
 else:
-    print("No agent found, creating new one")
+    print("[red]✖ No agent found, creating new one")
 
 if args.train:
     agent.training_loop(batch_size, save_path=filepath.parent / "training.pt")
 
-total_reward, episode_data = agent.validate(val_env_wrapped)
+with Progress() as progress:
+    task = progress.add_task("Validating", total=None)
+    total_reward, episode_data = agent.validate(val_env_wrapped)
 
+print("[green]Validation done")
+print(f"Total reward: {total_reward:.2f}")
 episode_data.debug_plot()
-print(f"Total reward: {total_reward}")

@@ -1,17 +1,17 @@
 import copy
-import matplotlib.pyplot as plt
 import os
 
+import matplotlib.pyplot as plt
 import torch
 
-from src.agent.dqn_small import DDQNAgent as DDQNAgentSmall
 from src.agent.dqn import DDQNAgent
-from src.environment.TestEnv import HydroElectric_Test
+from src.agent.dqn_small import DDQNAgentSmall
 from src.environment.dam import TestEnvWrapper
-from src.environment.dam_small import TestEnvWrapper as TestEnvWrapperSmall
+from src.environment.dam_small import TestEnvWrapperSmall
+from src.environment.TestEnv import HydroElectric_Test
 
-env = HydroElectric_Test(path_to_test_data='data/train.xlsx')
-val_env = HydroElectric_Test(path_to_test_data='data/validate.xlsx')
+env = HydroElectric_Test(path_to_test_data="data/train.xlsx")
+val_env = HydroElectric_Test(path_to_test_data="data/validate.xlsx")
 
 env_wrapped = TestEnvWrapper(copy.deepcopy(env))
 val_env_wrapped = TestEnvWrapper(copy.deepcopy(val_env))
@@ -59,19 +59,19 @@ rewards_small_big = []
 rewards_small_small = []
 
 agent = DDQNAgentSmall(
-        env=copy.deepcopy(env_wrapped_small),
-        val_env=copy.deepcopy(val_env_wrapped_small),
-        device=device,
-        epsilon=epsilon,
-        epsilon_decay=epsilon_decay,
-        epsilon_start=epsilon_start,
-        epsilon_end=epsilon_end,
-        n_episodes=n_episodes,
-        discount_rate=discount_rate,
-        lr=lr,
-        buffer_size=buffer_size,
-        seed=seed_value,
-        )
+    env=copy.deepcopy(env_wrapped_small),
+    val_env=copy.deepcopy(val_env_wrapped_small),
+    device=device,
+    epsilon=epsilon,
+    epsilon_decay=epsilon_decay,
+    epsilon_start=epsilon_start,
+    epsilon_end=epsilon_end,
+    n_episodes=n_episodes,
+    discount_rate=discount_rate,
+    lr=lr,
+    buffer_size=buffer_size,
+    seed=seed_value,
+)
 for model in os.listdir("models/experiment"):
     if "small_small" in model:
         agent.load(f"models/experiment/{model}")
@@ -120,7 +120,7 @@ for model in os.listdir("models/experiment"):
         rewards_big_small.append(total_reward)
 
 agent = DDQNAgent(
-   env=copy.deepcopy(env_wrapped),
+    env=copy.deepcopy(env_wrapped),
     val_env=copy.deepcopy(val_env_wrapped),
     device=device,
     epsilon=epsilon,
@@ -140,7 +140,9 @@ for model in os.listdir("models/experiment"):
         rewards_big_big.append(total_reward)
 
 # make boxplot of the results
-plt.boxplot([rewards_big_big, rewards_big_small, rewards_small_big, rewards_small_small])
+plt.boxplot(
+    [rewards_big_big, rewards_big_small, rewards_small_big, rewards_small_small]
+)
 # name the models, set name vertically
 plt.xticks([1, 2, 3, 4], ["NN+ FS+", "NN+ FS-", "NN- FS+", "NN- FS-"])
 plt.title("Boxplot of the rewards of the different models")
